@@ -1,10 +1,10 @@
 package monitoring_test
 
 import (
+	"chatops/internal/monitoring"
 	"context"
 	"encoding/json"
 	"fmt"
-	"hackaton/internal/monitoring"
 	"net/http"
 	"net/http/httptest"
 	"reflect"

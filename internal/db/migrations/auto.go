@@ -1,8 +1,8 @@
 package migrations
 
 import (
-	"db/config"
-	"db/models"
+	"chatops/internal/db/config"
+	"chatops/internal/db/models"
 )
 
 func AutoMigrate() error {

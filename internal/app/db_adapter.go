@@ -1,8 +1,8 @@
 package app
 
 import (
-	"db/models"
-	"db/repository"
+	"chatops/internal/db/models"
+	"chatops/internal/db/repository"
 )
 
 type DBAdapter struct{}

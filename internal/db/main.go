@@ -1,7 +1,7 @@
 package main
 
 import (
-	"db/migrations"
+	"chatops/internal/db/migrations"
 	"log"
 )
 

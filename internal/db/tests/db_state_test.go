@@ -1,9 +1,9 @@
 package tests
 
 import (
-	"db/config"
-	"db/migrations"
-	"db/models"
+	"chatops/internal/db/config"
+	"chatops/internal/db/migrations"
+	"chatops/internal/db/models"
 	"fmt"
 	"testing"
 )

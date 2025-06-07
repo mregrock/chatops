@@ -1,8 +1,8 @@
 package repository
 
 import (
-	"db/config"
-	"db/models"
+	"chatops/internal/db/config"
+	"chatops/internal/db/models"
 )
 
 // CreateUser создает нового пользователя

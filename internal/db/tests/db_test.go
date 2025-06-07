@@ -1,8 +1,8 @@
 package tests
 
 import (
-	"db/migrations"
-	"db/repository"
+	"chatops/internal/db/migrations"
+	"chatops/internal/db/repository"
 	"fmt"
 	"testing"
 	"time"

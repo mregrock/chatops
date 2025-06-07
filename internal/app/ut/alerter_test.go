@@ -2,16 +2,16 @@ package app_test
 
 import (
 	"bytes"
+	"chatops/internal/app"
+	"chatops/internal/monitoring"
 	"context"
 	"errors"
-	"hackaton/internal/app"
-	"hackaton/internal/monitoring"
 	"log"
 	"os"
 	"strings"
 	"testing"
 
-	"db/models"
+	"chatops/internal/db/models"
 )
 
 type mockMonitoringClient struct {
