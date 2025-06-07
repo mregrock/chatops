@@ -41,12 +41,18 @@ func (h *Handler) MetricHandler(c telebot.Context) error {
 
 	result := fmt.Sprintf("Status: %s\n", response.Status)
 
-	// TODO: че блять
-	for i, res := range response.Data.Result {
-		result += fmt.Sprintf("data.result[%d].value: %v\n", i, res.Value)
+	var allValues string
+
+	for _, result := range response.Data.Result {
+    	for _, v := range result.Value {
+        	allValues += fmt.Sprintf("%v ", v)
+    }	
 	}
 
-	return c.Send(result)
+	allValues = strings.TrimSpace(allValues) // убрать лишний пробел в конце
+
+
+	return c.Send(result + allValues)
 
 }
 

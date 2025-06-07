@@ -20,7 +20,7 @@ func revisionsHandler(c telebot.Context) error {
 type handlerFunc func(telebot.Context) error
 
 func withConfirmation(handler handlerFunc) handlerFunc {
-	return func(c telebot.Context) error {
+	return func(originalContext telebot.Context) error {
 		yesBtn := telebot.InlineButton{
 			Unique: "confirm_yes",
 			Text:   "Да",
@@ -30,7 +30,7 @@ func withConfirmation(handler handlerFunc) handlerFunc {
 			Text:   "Нет",
 		}
 
-		_, err := c.Bot().Send(c.Chat(), "Вы уверены?", &telebot.ReplyMarkup{
+		_, err := originalContext.Bot().Send(originalContext.Chat(), "Вы уверены?", &telebot.ReplyMarkup{
 			InlineKeyboard: [][]telebot.InlineButton{
 				{yesBtn, noBtn},
 			},
@@ -40,16 +40,16 @@ func withConfirmation(handler handlerFunc) handlerFunc {
 			return err
 		}
 
-		c.Bot().Handle(&yesBtn, func(cb telebot.Context) error {
-			if cb.Sender().ID != c.Sender().ID {
+		originalContext.Bot().Handle(&yesBtn, func(cb telebot.Context) error {
+			if cb.Sender().ID != originalContext.Sender().ID {
 				return cb.Respond(&telebot.CallbackResponse{Text: "Это не для вас"})
 			}
 			cb.Respond()
-			return handler(cb)
+			return handler(originalContext)
 		})
 
-		c.Bot().Handle(&noBtn, func(cb telebot.Context) error {
-			if cb.Sender().ID != c.Sender().ID {
+		originalContext.Bot().Handle(&noBtn, func(cb telebot.Context) error {
+			if cb.Sender().ID != originalContext.Sender().ID {
 				return cb.Respond(&telebot.CallbackResponse{Text: "Это не для вас"})
 			}
 			cb.Respond()
