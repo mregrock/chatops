@@ -10,24 +10,19 @@ import (
 	"db/models"
 )
 
-// MonitoringClient определяет интерфейс, который нужен Alerter'у от клиента мониторинга.
 type MonitoringClient interface {
 	GetActiveAlerts(ctx context.Context) ([]monitoring.Alert, error)
 }
 
-// DutyFinder определяет интерфейс для получения дежурных из источника данных (например, БД).
-// Это позволяет нам легко подменять реальную БД на мок в юнит-тестах.
 type DutyFinder interface {
 	GetDutyUsersByLabel(label string) ([]models.User, error)
 }
 
-// Alerter проверяет алерты и уведомляет дежурных.
 type Alerter struct {
 	monClient MonitoringClient
 	db        DutyFinder
 }
 
-// NewAlerter создает новый экземпляр Alerter.
 func NewAlerter(monClient MonitoringClient, db DutyFinder) *Alerter {
 	return &Alerter{
 		monClient: monClient,
@@ -35,7 +30,6 @@ func NewAlerter(monClient MonitoringClient, db DutyFinder) *Alerter {
 	}
 }
 
-// CheckAndNotify получает алерты, находит ответственных в БД и "отправляет" уведомление.
 func (a *Alerter) CheckAndNotify(ctx context.Context) error {
 	log.Println("Checking for active alerts...")
 
@@ -55,10 +49,8 @@ func (a *Alerter) CheckAndNotify(ctx context.Context) error {
 		var dutyUsers []models.User
 		var err error
 
-		// Пытаемся найти дежурных по меткам из алерта.
 		for key, value := range alert.Labels {
 			labelToSearch := fmt.Sprintf("%s=%s", key, value)
-			// ИСПОЛЬЗУЕМ НАШ ИНТЕРФЕЙС!
 			dutyUsers, err = a.db.GetDutyUsersByLabel(labelToSearch)
 			if err != nil {
 				log.Printf("Error searching duty users for label %s: %v", labelToSearch, err)
@@ -75,7 +67,6 @@ func (a *Alerter) CheckAndNotify(ctx context.Context) error {
 			continue
 		}
 
-		// Формируем и "отправляем" уведомление каждому найденному дежурному.
 		for _, user := range dutyUsers {
 			notification := formatNotification(user.Login, alert)
 			log.Println(notification)
