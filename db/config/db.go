@@ -34,7 +34,7 @@ func InitDB() error {
 
 	dbname := os.Getenv("POSTGRES_DB")
 	if dbname == "" {
-		dbname = "db1"
+		dbname = "chatops"
 	}
 
 	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
