@@ -5,19 +5,28 @@ import (
 	"fmt"
 	"hackaton/internal/monitoring"
 	"log"
+	"strings"
+
+	"db/models"
 )
 
 type MonitoringClient interface {
 	GetActiveAlerts(ctx context.Context) ([]monitoring.Alert, error)
 }
 
-type Alerter struct {
-	monClient MonitoringClient
+type DutyFinder interface {
+	GetDutyUsersByLabel(label string) ([]models.User, error)
 }
 
-func NewAlerter(monClient MonitoringClient) *Alerter {
+type Alerter struct {
+	monClient MonitoringClient
+	db        DutyFinder
+}
+
+func NewAlerter(monClient MonitoringClient, db DutyFinder) *Alerter {
 	return &Alerter{
 		monClient: monClient,
+		db:        db,
 	}
 }
 
@@ -37,51 +46,57 @@ func (a *Alerter) CheckAndNotify(ctx context.Context) error {
 	log.Printf("Found %d active alerts. Processing...\n", len(alerts))
 
 	for _, alert := range alerts {
-		serviceName, ok := alert.Labels["job"]
-		if !ok {
-			log.Printf("Skipping alert, 'job' label not found: %v", alert.Labels)
+		var dutyUsers []models.User
+		var err error
+
+		for key, value := range alert.Labels {
+			labelToSearch := fmt.Sprintf("%s=%s", key, value)
+			dutyUsers, err = a.db.GetDutyUsersByLabel(labelToSearch)
+			if err != nil {
+				log.Printf("Error searching duty users for label %s: %v", labelToSearch, err)
+				continue
+			}
+			if len(dutyUsers) > 0 {
+				log.Printf("Found %d duty users for label '%s'", len(dutyUsers), labelToSearch)
+				break
+			}
+		}
+
+		if len(dutyUsers) == 0 {
+			log.Printf("No duty users found for alert with labels: %v. Skipping.", alert.Labels)
 			continue
 		}
 
-		dutyPerson, err := getOnCallDuty(serviceName)
-		if err != nil {
-			log.Printf("Could not get duty person for service %s: %v. Skipping.", serviceName, err)
-			continue
+		for _, user := range dutyUsers {
+			notification := formatNotification(user.Login, alert)
+			log.Println(notification)
 		}
-
-		notification := formatNotification(dutyPerson, serviceName, alert)
-		log.Println(notification)
 	}
 	return nil
 }
-
-func getOnCallDuty(serviceName string) (string, error) {
-	switch serviceName {
-	case "test-app-go-svc":
-		return "Дежурный команды Альфа (Вася)", nil
-	case "prometheus":
-		return "Дежурный по инфраструктуре (Петя)", nil
-	default:
-		return "Главный дежурный (Иван)", nil
+func formatNotification(dutyPersonUsername string, alert monitoring.Alert) string {
+	var details []string
+	for key, value := range alert.Labels {
+		details = append(details, fmt.Sprintf("- %s: %s", key, value))
 	}
-}
+	labelsFormatted := strings.Join(details, "\n")
 
-func formatNotification(dutyPerson, serviceName string, alert monitoring.Alert) string {
 	summary := alert.Annotations["summary"]
-	if summary == "" {
-		summary = "No summary provided."
-	}
+	description := alert.Annotations["description"]
+
 	return fmt.Sprintf(
-		"УВЕДОМЛЕНИЕ ДЛЯ: %s\n"+
+		"УВЕДОМЛЕНИЕ ДЛЯ: @%s\n"+
 			"==================================\n"+
-			"🚨 Сработал алерт!\n"+
-			"Сервис: %s\n"+
-			"Название алерта: %s\n"+
-			"Описание: %s\n"+
+			"🚨 Сработал алерт: %s\n\n"+
+			"📋 Описание: %s\n"+
+			"📝 Дополнительно: %s\n\n"+
+			"🏷 Метки:\n"+
+			"%s\n"+
 			"==================================",
-		dutyPerson,
-		serviceName,
+		dutyPersonUsername,
 		alert.Labels["alertname"],
 		summary,
+		description,
+		labelsFormatted,
 	)
 }
