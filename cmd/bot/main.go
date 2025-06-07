@@ -118,12 +118,12 @@ func main() {
 		"/revisions":   revisionsHandler,
 	}
 	var userState = make(map[int64]string)
-	var userLogin = make(map[int64]string)
+	var userLogin = ""
+	var userPassword = ""
+	var userStatusAuthorization = false
+
 	bot.Handle("/start", func(c telebot.Context) error {
 		userID := c.Sender().ID
-		if _, ok := userState[userID]; ok {
-			return nil
-		}
 		userState[userID] = "login"
 		return c.Send("Введите свой логин:")
 	})
@@ -135,27 +135,36 @@ func main() {
 		text := c.Text()
 		userID := c.Sender().ID
 		if strings.HasPrefix(text, "/") {
-			if _, ok := userState[userID]; ok {
-				return nil
+			if userStatusAuthorization {
+				if _, ok := userState[userID]; ok {
+					return nil
+				}
+				parts := strings.SplitN(text, " ", 2)
+				cmd := parts[0]
+				if handler, ok := commandHandlers[cmd]; ok {
+					return withConfirmation(handler)(c)
+				}
+				return c.Send("Введите одну из предложенных команд")
+			} else {
+				return c.Send("Вы не авторизованы. Введите /start для авторизации.")
 			}
-			parts := strings.SplitN(text, " ", 2)
-			cmd := parts[0]
-			if handler, ok := commandHandlers[cmd]; ok {
-				return withConfirmation(handler)(c)
-			}
-			return c.Send("Введите одну из предложенных команд")
 		} else {
 			switch userState[userID] {
 			case "login":
 				userState[userID] = "password"
-				userLogin[userID] = c.Text()
+				userLogin = c.Text()
 				return c.Send("Теперь введите пароль:")
 			case "password":
 
 				// TODO: сделать проверку логина и пароля
 				delete(userState, userID)
-				delete(userLogin, userID)
-				return c.Send("Авторизация успешна!")
+				userPassword = c.Text()
+				userStatusAuthorization = handlers.ProofLoginPaswordHandler(userLogin, userPassword)
+				if userStatusAuthorization {
+					return c.Send("Авторизация успешна!")
+				} else {
+					return c.Send("Неверный логин или пароль.")
+				}
 			default:
 				return c.Send("Непонятные входные данные или что то пошло не так.")
 			}
