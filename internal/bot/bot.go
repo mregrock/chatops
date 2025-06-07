@@ -6,7 +6,8 @@ import (
 	"os"
 	"strings"
 	"time"
-	"chatops/internal/monitoring/client.go"
+	"bot/internal/bot/handlers"
+	"bot/internal/monitoring"
 	"github.com/joho/godotenv"
 	telebot "gopkg.in/telebot.v3"
 )

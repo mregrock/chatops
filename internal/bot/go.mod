@@ -1,4 +1,4 @@
-module bot
+module chatops
 
 go 1.19
 

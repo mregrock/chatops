@@ -1,4 +1,4 @@
-package metrics_handler
+package handlers
 
 
 import (
@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 	"time"
-	"chatops/internal/monitoring/client.go"
+	"chatops/internal/monitoring/handlers"
 	"github.com/joho/godotenv"
 	telebot "gopkg.in/telebot.v3"
 )

@@ -1,4 +1,4 @@
-package kube_handler
+package handlers
 
 
 import (
