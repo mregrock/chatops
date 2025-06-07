@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -10,31 +9,6 @@ import (
 	"github.com/joho/godotenv"
 	telebot "gopkg.in/telebot.v3"
 )
-
-// State constants for FSM
-const (
-	StateInitial = "initial"
-	StateLogin   = "login"
-	StatePassword = "password"
-)
-
-// UserState stores the current state and data for each user
-type UserState struct {
-	State string
-	Login string
-}
-
-// Global map to store user states
-var userStates = make(map[int64]*UserState)
-
-func getUserState(userID int64) *UserState {
-	state, exists := userStates[userID]
-	if !exists {
-		state = &UserState{State: StateInitial}
-		userStates[userID] = state
-	}
-	return state
-}
 
 func statusHandle(c telebot.Context) error {
 	// TODO: Реализовать логику для команды status
@@ -118,34 +92,6 @@ func withConfirmation(handler handlerFunc) handlerFunc {
 	}
 }
 
-func handleMessage(c telebot.Context) error {
-	userID := c.Sender().ID
-	state := getUserState(userID)
-	text := c.Text()
-
-	switch state.State {
-	case StateInitial:
-		return c.Send("Введите логин:")
-	case StateLogin:
-		state.Login = text
-		state.State = StatePassword
-		return c.Send("Введите пароль:")
-	case StatePassword:
-		// TODO: здесь можно добавить проверку пароля
-		state.State = StateInitial
-		return c.Send(fmt.Sprintf("Вы успешно авторизовались с логином %s!", state.Login))
-	default:
-		return c.Send("Неизвестное состояние")
-	}
-}
-
-func startCommand(c telebot.Context) error {
-	userID := c.Sender().ID
-	state := getUserState(userID)
-	state.State = StateLogin
-	return c.Send("Введите логин:")
-}
-
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -167,7 +113,18 @@ func main() {
 		log.Fatal(err)
 	}
 
-	helpMsg := "Доступные функции :\n\n/start - чтобы авторизоваться \n/status [name\\id] - ? \n/metric \n/scale \n/restart \n/rollback \n/history \n/operations \n/revisions \n/help - выводит все доступные команды "
+	helpMsg := `Доступные функции:
+
+	/start - чтобы авторизоваться
+	/status [name\id] - ?
+	/metric
+	/scale
+	/restart
+	/rollback
+	/history
+	/operations
+	/revisions
+	/help - выводит все доступные команды`
 
 	var commandHandlers = map[string]handlerFunc{
 		"/status":     statusHandle,
@@ -179,29 +136,66 @@ func main() {
 		"/operations": operationsHandle,
 		"/revisions":  revisionsHandle,
 	}
-
-	bot.Handle("/start", startCommand)
+	var userState = make(map[int64]string)
+	var userLogin = make(map[int64]string)
+	bot.Handle("/start", func(c telebot.Context) error {
+		userID := c.Sender().ID
+		if _, ok  := userState[userID]; ok {
+			return nil
+		}
+		userState[userID] = "login"
+		return c.Send("Введите свой логин:")
+	})
 	bot.Handle("/help", func(c telebot.Context) error {
 		return c.Send(helpMsg)
 	})
 
 	bot.Handle(telebot.OnText, func(c telebot.Context) error {
 		text := c.Text()
-		
-		// Если это команда
+		userID := c.Sender().ID
 		if strings.HasPrefix(text, "/") {
+			if _, ok  := userState[userID]; ok {
+				return nil
+			}
 			parts := strings.SplitN(text, " ", 2)
 			cmd := parts[0]
 			if handler, ok := commandHandlers[cmd]; ok {
 				return withConfirmation(handler)(c)
 			}
 			return c.Send("Введите одну из предложенных команд")
+		} else {
+			switch userState[userID]  {
+			case "login":
+				userState[userID] = "password"
+				userLogin[userID] = c.Text()
+				return c.Send("Теперь введите пароль:")
+			case "password":
+
+				// TODO: сделать проверку логина и пароля
+				delete(userState, userID)
+				delete(userLogin, userID)
+				return c.Send("Авторизация успешна!")
+			default:
+				return c.Send("Непонятные входные данные или что то пошло не так.")
+			}
 		}
 
-		// Если это не команда, обрабатываем как часть FSM диалога
-		return handleMessage(c)
 	})
-
+	commands := []telebot.Command{
+		{Text: "start", Description: "Авторизация в системе"},
+		{Text: "status", Description: "Проверка статуса [name|id]"},
+		{Text: "metric", Description: "Получение метрик"},
+		{Text: "scale", Description: "Масштабирование"},
+		{Text: "restart", Description: "Перезапуск"},
+		{Text: "rollback", Description: "Откат изменений"},
+		{Text: "history", Description: "История операций"},
+		{Text: "operations", Description: "Список операций"},
+		{Text: "revisions", Description: "Список ревизий"},
+		{Text: "help", Description: "Список доступных команд"},
+	}
+	if err := bot.SetCommands(commands); err != nil {
+		log.Println("Ошибка при установке команд:", err)
+	}
+	
 	bot.Start()
 }
-
