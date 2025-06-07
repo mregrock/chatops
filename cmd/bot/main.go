@@ -4,9 +4,10 @@ import (
 	"chatops/internal/bot/handlers"
 	"chatops/internal/db/migrations"
 	"chatops/internal/monitoring"
-
+	"chatops/internal/kube"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -73,14 +74,23 @@ func main() {
 	if token == "" {
 		log.Fatal("TELEGRAM_API не найден в .env")
 	}
-
-	// TODO: get from env
-	monClient, err := monitoring.NewClient("http://localhost:9090", "")
+	
+	monitorClient, err := monitoring.NewClient("http://localhost:9090", "")
 	if err != nil {
 		log.Fatal(err)
 	}
+	handlers.SetMonitorClient(monitorClient)
 
-	h := handlers.New(monClient)
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatal("Не удалось определить домашнюю директорию:", err)
+	}
+	kubeconfigPath := filepath.Join(homeDir, ".kube", "config")
+	kubeClient, err := kube.InitClientFromKubeconfig(kubeconfigPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	handlers.SetKubeClient(kubeClient)
 
 	pref := telebot.Settings{
 		Token:  token,
@@ -107,12 +117,12 @@ func main() {
 	/help - выводит все доступные команды`
 
 	var commandHandlers = map[string]handlerFunc{
-		"/status":      h.StatusHandler,
-		"/metric":      h.MetricHandler,
-		"/list_metric": h.ListMetricsHandler,
-		"/scale":       h.ScaleHandler,
-		"/restart":     h.RestartHandler,
-		"/rollback":    h.RollbackHandler,
+		"/status":      handlers.StatusHandler,
+		"/metric":      handlers.MetricHandler,
+		"/list_metric": handlers.ListMetricsHandler,
+		"/scale":       handlers.ScaleHandler,
+		"/restart":     handlers.RestartHandler,
+		"/rollback":    handlers.RollbackHandler,
 		"/history":     handlers.HistoryHandler,
 		"/operations":  handlers.OperationsHandler,
 		"/revisions":   revisionsHandler,
