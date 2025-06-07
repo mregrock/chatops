@@ -16,11 +16,19 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// RevisionInfo содержит информацию о доступной ревизии для отката
+type RevisionInfo struct {
+	Revision int64
+	RSName   string
+	Image    string
+}
+
 type K8sClientInterface interface {
 	GetPodStatus(ctx context.Context, namespace, podName string) (string, error)
 	ScaleDeploymentWithLogs(ctx context.Context, namespace, name string, replicas int32, logCh chan<- string) error
 	RollbackDeploymentWithLogs(ctx context.Context, namespace, name string, revision int64, logCh chan<- string) error
 	RestartDeploymentWithLogs(ctx context.Context, namespace, name string, logCh chan<- string) error
+	ListAvailableRevisions(ctx context.Context, namespace, deploymentName string) ([]RevisionInfo, error)
 	GetClientset() kubernetes.Interface
 }
 
@@ -342,4 +350,46 @@ func (c *K8sClient) RestartDeploymentWithLogs(ctx context.Context, namespace, na
 // GetClientset возвращает клиент kubernetes
 func (c *K8sClient) GetClientset() kubernetes.Interface {
 	return c.clientset
+}
+
+// ListAvailableRevisions возвращает список всех ревизий (ReplicaSet) для отката Deployment
+func (c *K8sClient) ListAvailableRevisions(ctx context.Context, namespace, deploymentName string) ([]RevisionInfo, error) {
+	dep, err := c.GetClientset().AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	selector, err := metav1.LabelSelectorAsSelector(dep.Spec.Selector)
+	if err != nil {
+		return nil, err
+	}
+	rsList, err := c.GetClientset().AppsV1().ReplicaSets(namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: selector.String(),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var revisions []RevisionInfo
+	for _, rs := range rsList.Items {
+		revStr := rs.Annotations["deployment.kubernetes.io/revision"]
+		if revStr == "" {
+			continue
+		}
+		var rev int64
+		fmt.Sscanf(revStr, "%d", &rev)
+		image := ""
+		if len(rs.Spec.Template.Spec.Containers) > 0 {
+			image = rs.Spec.Template.Spec.Containers[0].Image
+		}
+		revisions = append(revisions, RevisionInfo{
+			Revision: rev,
+			RSName:   rs.Name,
+			Image:    image,
+		})
+	}
+	// Сортируем по ревизии по возрастанию
+	sort.Slice(revisions, func(i, j int) bool {
+		return revisions[i].Revision < revisions[j].Revision
+	})
+	return revisions, nil
 }

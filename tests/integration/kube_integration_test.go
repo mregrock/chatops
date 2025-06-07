@@ -366,6 +366,171 @@ func TestIntegration(t *testing.T) {
 	fmt.Println("🎉 Интеграционный тест успешно завершен!")
 }
 
+func TestIntegrationRollbackAllRevisions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Пропускаем интеграционный тест в режиме short")
+	}
+
+	ctx := context.Background()
+	fmt.Println("🚀 Начинаем интеграционный тест отката на все ревизии...")
+
+	kubeconfig := os.Getenv("KUBECONFIG")
+	if kubeconfig == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			t.Fatalf("Ошибка получения домашней директории: %v", err)
+		}
+		kubeconfig = filepath.Join(home, ".kube", "config")
+	}
+	fmt.Printf("📁 Используем kubeconfig: %s\n", kubeconfig)
+
+	client, err := k8sclient.InitClientFromKubeconfig(kubeconfig)
+	assert.NoError(t, err)
+	fmt.Println("✅ Клиент Kubernetes инициализирован")
+
+	// Удаляем namespace test-integration, если он существует
+	fmt.Println("🗑️  Удаляем namespace test-integration, если он существует...")
+	err = client.GetClientset().CoreV1().Namespaces().Delete(context.TODO(), "test-integration", metav1.DeleteOptions{})
+	if err != nil {
+		fmt.Printf("⚠️  Ошибка удаления namespace: %v\n", err)
+	}
+
+	// Ждем удаления namespace
+	fmt.Println("⏳ Ждем удаления namespace...")
+	err = wait.PollImmediate(2*time.Second, 1*time.Minute, func() (bool, error) {
+		_, err := client.GetClientset().CoreV1().Namespaces().Get(context.TODO(), "test-integration", metav1.GetOptions{})
+		if err != nil {
+			return true, nil
+		}
+		return false, nil
+	})
+	assert.NoError(t, err)
+	fmt.Println("✅ Namespace удален")
+
+	// Создаем namespace test-integration
+	fmt.Println("📦 Создаем namespace test-integration...")
+	_, err = client.GetClientset().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-integration",
+		},
+	}, metav1.CreateOptions{})
+	assert.NoError(t, err)
+	fmt.Println("✅ Namespace создан")
+
+	defer func() {
+		fmt.Printf("🧹 Очистка: удаляем namespace %s...\n", "test-integration")
+		_ = client.GetClientset().CoreV1().Namespaces().Delete(context.TODO(), "test-integration", metav1.DeleteOptions{})
+	}()
+
+	// Создаем deployment test-deployment
+	fmt.Println("📦 Создаем deployment test-deployment...")
+	deployment := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-deployment",
+			Annotations: map[string]string{
+				"deployment.kubernetes.io/revision": "1",
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: int32Ptr(2),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"app": "test",
+				},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"app": "test",
+					},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "nginx",
+							Image: "nginx:1.19",
+							Ports: []corev1.ContainerPort{
+								{
+									ContainerPort: 80,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	_, err = client.GetClientset().AppsV1().Deployments("test-integration").Create(context.TODO(), deployment, metav1.CreateOptions{})
+	assert.NoError(t, err)
+	fmt.Println("✅ Deployment создан")
+
+	// Ждем готовности deployment
+	fmt.Println("⏳ Ждем готовности deployment...")
+	err = waitForDeploymentReady(client, "test-integration", "test-deployment")
+	assert.NoError(t, err)
+	fmt.Println("✅ Deployment готов")
+
+	// Создаем несколько ревизий, обновляя образ
+	images := []string{"nginx:1.20", "nginx:1.21", "nginx:1.22"}
+	for _, image := range images {
+		fmt.Printf("🔄 Обновляем образ на %s...\n", image)
+		for i := 0; i < 5; i++ { // Пробуем до 5 раз
+			dep, err := client.GetClientset().AppsV1().Deployments("test-integration").Get(ctx, "test-deployment", metav1.GetOptions{})
+			assert.NoError(t, err)
+			dep.Spec.Template.Spec.Containers[0].Image = image
+			_, err = client.GetClientset().AppsV1().Deployments("test-integration").Update(ctx, dep, metav1.UpdateOptions{})
+			if err == nil {
+				break
+			}
+			if i < 4 { // Если это не последняя попытка
+				fmt.Printf("⚠️  Попытка %d не удалась, пробуем снова...\n", i+1)
+				time.Sleep(time.Second) // Ждем секунду перед следующей попыткой
+				continue
+			}
+			assert.NoError(t, err) // Если все попытки не удались, выходим с ошибкой
+		}
+		err = waitForDeploymentReady(client, "test-integration", "test-deployment")
+		assert.NoError(t, err)
+		fmt.Printf("✅ Образ обновлен на %s\n", image)
+	}
+
+	// Получаем список доступных ревизий
+	fmt.Println("📋 Получаем список доступных ревизий...")
+	revisions, err := client.ListAvailableRevisions(ctx, "test-integration", "test-deployment")
+	assert.NoError(t, err)
+	fmt.Printf("📊 Найдено %d ревизий\n", len(revisions))
+
+	// Пытаемся откатиться на каждую ревизию
+	for _, rev := range revisions {
+		fmt.Printf("⏪ Откат к ревизии %d (RS: %s, Image: %s)...\n", rev.Revision, rev.RSName, rev.Image)
+		logCh := make(chan string, 100)
+		done := make(chan struct{})
+		go func() {
+			for msg := range logCh {
+				fmt.Println(msg)
+			}
+			close(done)
+		}()
+
+		err := client.RollbackDeploymentWithLogs(ctx, "test-integration", "test-deployment", rev.Revision, logCh)
+		assert.NoError(t, err)
+		close(logCh)
+		<-done
+
+		// Проверяем, что откат успешен
+		err = waitForDeploymentReady(client, "test-integration", "test-deployment")
+		assert.NoError(t, err)
+
+		// Проверяем, что версия образа соответствует выбранной ревизии
+		dep, err := client.GetClientset().AppsV1().Deployments("test-integration").Get(ctx, "test-deployment", metav1.GetOptions{})
+		assert.NoError(t, err)
+		assert.Equal(t, rev.Image, dep.Spec.Template.Spec.Containers[0].Image)
+		fmt.Printf("✅ Откат к ревизии %d успешно завершен\n", rev.Revision)
+	}
+
+	fmt.Println("🎉 Интеграционный тест отката на все ревизии успешно завершен!")
+}
+
 // Вспомогательная функция для ожидания готовности deployment
 func waitForDeploymentReady(client *k8sclient.K8sClient, namespace, name string) error {
 	ctx := context.Background()

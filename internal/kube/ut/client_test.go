@@ -564,6 +564,160 @@ func TestRollbackDeploymentWithLogs(t *testing.T) {
 	})
 }
 
+func TestListAvailableRevisions(t *testing.T) {
+	fakeClient := fake.NewSimpleClientset()
+	client := kube.NewTestClient(fakeClient)
+
+	// Создаем тестовый deployment
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-deployment",
+			Namespace: "test-ns",
+			Annotations: map[string]string{
+				"deployment.kubernetes.io/revision": "3",
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: int32Ptr(2),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": "test"},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"app": "test"},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "test",
+							Image: "nginx:1.23",
+						},
+					},
+				},
+			},
+		},
+		Status: appsv1.DeploymentStatus{
+			AvailableReplicas: 2,
+			UpdatedReplicas:   2,
+			Replicas:          2,
+		},
+	}
+
+	// Создаем ReplicaSet для ревизии 1
+	rs1 := &appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-rs-1",
+			Namespace: "test-ns",
+			Labels:    map[string]string{"app": "test"},
+			Annotations: map[string]string{
+				"deployment.kubernetes.io/revision": "1",
+			},
+		},
+		Spec: appsv1.ReplicaSetSpec{
+			Replicas: int32Ptr(2),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": "test"},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"app": "test"},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "test",
+							Image: "nginx:1.21",
+						},
+					},
+				},
+			},
+		},
+		Status: appsv1.ReplicaSetStatus{
+			Replicas:      2,
+			ReadyReplicas: 2,
+		},
+	}
+
+	// Создаем ReplicaSet для ревизии 2
+	rs2 := &appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-rs-2",
+			Namespace: "test-ns",
+			Labels:    map[string]string{"app": "test"},
+			Annotations: map[string]string{
+				"deployment.kubernetes.io/revision": "2",
+			},
+		},
+		Spec: appsv1.ReplicaSetSpec{
+			Replicas: int32Ptr(2),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": "test"},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"app": "test"},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "test",
+							Image: "nginx:1.22",
+						},
+					},
+				},
+			},
+		},
+		Status: appsv1.ReplicaSetStatus{
+			Replicas:      2,
+			ReadyReplicas: 2,
+		},
+	}
+
+	_, err := client.GetClientset().AppsV1().Deployments("test-ns").Create(context.Background(), dep, metav1.CreateOptions{})
+	assert.NoError(t, err)
+
+	_, err = client.GetClientset().AppsV1().ReplicaSets("test-ns").Create(context.Background(), rs1, metav1.CreateOptions{})
+	assert.NoError(t, err)
+
+	_, err = client.GetClientset().AppsV1().ReplicaSets("test-ns").Create(context.Background(), rs2, metav1.CreateOptions{})
+	assert.NoError(t, err)
+
+	// Тест получения списка ревизий
+	t.Run("List Available Revisions", func(t *testing.T) {
+		revisions, err := client.ListAvailableRevisions(context.Background(), "test-ns", "test-deployment")
+		assert.NoError(t, err)
+		assert.Equal(t, 2, len(revisions))
+		assert.Equal(t, int64(1), revisions[0].Revision)
+		assert.Equal(t, "test-rs-1", revisions[0].RSName)
+		assert.Equal(t, "nginx:1.21", revisions[0].Image)
+		assert.Equal(t, int64(2), revisions[1].Revision)
+		assert.Equal(t, "test-rs-2", revisions[1].RSName)
+		assert.Equal(t, "nginx:1.22", revisions[1].Image)
+	})
+
+	// Тест отката к предыдущей ревизии
+	t.Run("Rollback to Previous Revision", func(t *testing.T) {
+		logCh := make(chan string, 100)
+		done := make(chan struct{})
+		go func() {
+			for msg := range logCh {
+				t.Log(msg)
+			}
+			close(done)
+		}()
+
+		err := client.RollbackDeploymentWithLogs(context.Background(), "test-ns", "test-deployment", 0, logCh)
+		assert.NoError(t, err)
+		close(logCh)
+		<-done
+
+		// Проверяем, что deployment обновился с шаблоном из предыдущей ревизии
+		updatedDep, err := client.GetClientset().AppsV1().Deployments("test-ns").Get(context.Background(), "test-deployment", metav1.GetOptions{})
+		assert.NoError(t, err)
+		assert.Equal(t, "nginx:1.22", updatedDep.Spec.Template.Spec.Containers[0].Image)
+	})
+}
+
 // Вспомогательная функция для создания указателя на int32
 func int32Ptr(i int32) *int32 {
 	return &i
