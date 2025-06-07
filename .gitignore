@@ -404,5 +404,9 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+.idea/
+
+*_key*
+
 .env
-.gitignore
