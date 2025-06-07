@@ -2,6 +2,7 @@ package main
 
 import (
 	"chatops/internal/bot/handlers"
+	"chatops/internal/db/migrations"
 	"chatops/internal/monitoring"
 
 	"log"
@@ -66,6 +67,8 @@ func main() {
 		log.Fatal("Не удалось загрузить .env файл")
 	}
 
+	migrations.AutoMigrate()
+
 	token := os.Getenv("TELEGRAM_API")
 	if token == "" {
 		log.Fatal("TELEGRAM_API не найден в .env")
@@ -110,8 +113,8 @@ func main() {
 		"/scale":       h.ScaleHandler,
 		"/restart":     h.RestartHandler,
 		"/rollback":    h.RollbackHandler,
-		"/history":     h.HistoryHandler,
-		"/operations":  h.OperationsHandler,
+		"/history":     handlers.HistoryHandler,
+		"/operations":  handlers.OperationsHandler,
 		"/revisions":   revisionsHandler,
 	}
 	var userState = make(map[int64]string)
