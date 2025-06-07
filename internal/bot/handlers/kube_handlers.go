@@ -1,45 +1,31 @@
 package handlers
 
 import (
-	"context"
-	"fmt"
-	"strings"
-	"time"
-
-
+	"chatops/internal/kube"
 	telebot "gopkg.in/telebot.v3"
 )
 
-type Handler struct {
-	monitor *monitoring.Client
-}
+var GlobalKubeClient *kube.K8sClient
 
-func New(monitor *monitoring.Client) *Handler {
-	return &Handler{monitor: monitor}
-}
-
-
-// kube
-func (h *Handler) statusHandler(c telebot.Context) error {
-	context.Background()
-
-	return c.Send("Выполняется команда status...")
+// SetKubeClient sets the global Kubernetes client for handlers
+func SetKubeClient(client *kube.K8sClient) {
+	GlobalKubeClient = client
 }
 
 // kube
-func (h *Handler) scaleHandler(c telebot.Context) error {
+func scaleHandler(c telebot.Context) error {
 	// TODO: Реализовать логику для команды scale
 	return c.Send("Выполняется команда scale...")
 }
 
 // kube
-func (h *Handler) restartHandler(c telebot.Context) error {
+func restartHandler(c telebot.Context) error {
 	// TODO: Реализовать логику для команды restart
 	return c.Send("Выполняется команда restart...")
 }
 
 // kube
-func (h *Handler) rollbackHandler(c telebot.Context) error {
+func rollbackHandler(c telebot.Context) error {
 	// TODO: Реализовать логику для команды rollback
 	return c.Send("Выполняется команда rollback...")
 }

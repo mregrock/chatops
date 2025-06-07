@@ -11,16 +11,15 @@ import (
 	telebot "gopkg.in/telebot.v3"
 )
 
-type Handler struct {
-	monitor *monitoring.Client
-}
+var GlobalMonitorClient *monitoring.Client 
 
-func New(monitor *monitoring.Client) *Handler {
-	return &Handler{monitor: monitor}
+// SetMonitorClient sets the global monitor client for handlers
+func SetMonitorClient(client *monitoring.Client) {
+	GlobalMonitorClient = client
 }
 
 // metric
-func (h *Handler) MetricHandler(c telebot.Context) error {
+func  MetricHandler(c telebot.Context) error {
 	parts := strings.SplitN(c.Text(), " ", 3)
 	if len(parts) < 3 {
 		return c.Send("Неправильное кол-во параметров ")
@@ -31,7 +30,9 @@ func (h *Handler) MetricHandler(c telebot.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := h.monitor.Query(ctx, req)
+	response, err := GlobalMonitorClient.Query(ctx, req)
+
+
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			return c.Send("Превышено время ожидания запроса (timeout)")
@@ -50,14 +51,14 @@ func (h *Handler) MetricHandler(c telebot.Context) error {
 		}
 	}
 
-	allValues = strings.TrimSpace(allValues) // убрать лишний пробел в конце
+	allValues = strings.TrimSpace(allValues) 
 
 	return c.Send(result + allValues)
 
 }
 
 // metric
-func (h *Handler) ListMetricsHandler(c telebot.Context) error {
+func ListMetricsHandler(c telebot.Context) error {
 	parts := strings.SplitN(c.Text(), " ", 3)
 	if len(parts) < 3 {
 		return c.Send("Неправильное кол-во параметров ")
@@ -68,7 +69,7 @@ func (h *Handler) ListMetricsHandler(c telebot.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	response, err := h.monitor.ListMetrics(ctx, req)
+	response, err := GlobalMonitorClient.ListMetrics(ctx, req)
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			return c.Send("Превышено время ожидания запроса (timeout)")
@@ -86,31 +87,38 @@ func (h *Handler) ListMetricsHandler(c telebot.Context) error {
 }
 
 // StatusHandler - заглушка
-func (h *Handler) StatusHandler(c telebot.Context) error {
+func StatusHandler(c telebot.Context) error {
 	return c.Send("Not implemented")
 }
 
 // ScaleHandler - заглушка
-func (h *Handler) ScaleHandler(c telebot.Context) error {
+func ScaleHandler(c telebot.Context) error {
 	return c.Send("Not implemented")
 }
 
 // RestartHandler - заглушка
-func (h *Handler) RestartHandler(c telebot.Context) error {
+func  RestartHandler(c telebot.Context) error {
 	return c.Send("Not implemented")
 }
 
 // RollbackHandler - заглушка
-func (h *Handler) RollbackHandler(c telebot.Context) error {
+func  RollbackHandler(c telebot.Context) error {
 	return c.Send("Not implemented")
 }
 
 // HistoryHandler - заглушка
-func (h *Handler) HistoryHandler(c telebot.Context) error {
+func  HistoryHandler(c telebot.Context) error {
 	return c.Send("Not implemented")
 }
 
 // OperationsHandler - заглушка
-func (h *Handler) OperationsHandler(c telebot.Context) error {
+func  OperationsHandler(c telebot.Context) error {
 	return c.Send("Not implemented")
+}
+
+// metric
+func statusHandler(c telebot.Context) error {
+	context.Background()
+
+	return c.Send("Выполняется команда status...")
 }
