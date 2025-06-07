@@ -88,6 +88,7 @@ func TestIntegration(t *testing.T) {
 		t.Skip("Пропускаем интеграционный тест в режиме short")
 	}
 
+	ctx := context.Background()
 	fmt.Println("🚀 Начинаем интеграционный тест...")
 
 	kubeconfig := os.Getenv("KUBECONFIG")
@@ -218,7 +219,7 @@ func TestIntegration(t *testing.T) {
 			fmt.Println(msg)
 		}
 	}()
-	err = client.ScaleDeploymentWithLogs("test-integration", "test-deployment", 3, logCh)
+	err = client.ScaleDeploymentWithLogs(ctx, "test-integration", "test-deployment", 3, logCh)
 	assert.NoError(t, err)
 	close(logCh)
 
@@ -262,7 +263,7 @@ func TestIntegration(t *testing.T) {
 			fmt.Println(msg)
 		}
 	}()
-	err = client.RollbackDeploymentWithLogs("test-integration", "test-deployment", logCh)
+	err = client.RollbackDeploymentWithLogs(ctx, "test-integration", "test-deployment", logCh)
 	assert.NoError(t, err)
 	close(logCh)
 
@@ -286,7 +287,7 @@ func TestIntegration(t *testing.T) {
 			fmt.Println(msg)
 		}
 	}()
-	err = client.RestartDeploymentWithLogs("test-integration", "test-deployment", logCh)
+	err = client.RestartDeploymentWithLogs(ctx, "test-integration", "test-deployment", logCh)
 	assert.NoError(t, err)
 	close(logCh)
 
@@ -313,8 +314,9 @@ func TestIntegration(t *testing.T) {
 
 // Вспомогательная функция для ожидания готовности deployment
 func waitForDeploymentReady(client *k8sclient.K8sClient, namespace, name string) error {
-	return wait.PollImmediate(2*time.Second, 5*time.Minute, func() (bool, error) {
-		dep, err := client.GetClientset().AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	ctx := context.Background()
+	return wait.PollUntilContextCancel(ctx, 2*time.Second, true, func(ctx context.Context) (bool, error) {
+		dep, err := client.GetClientset().AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return false, err
 		}

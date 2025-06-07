@@ -169,7 +169,8 @@ func TestScaleDeploymentWithLogs(t *testing.T) {
 				}()
 			}
 
-			err := testClient.ScaleDeploymentWithLogs(tt.namespace, tt.deployName, tt.replicas, logCh)
+			ctx := context.Background()
+			err := testClient.ScaleDeploymentWithLogs(ctx, tt.namespace, tt.deployName, tt.replicas, logCh)
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
@@ -283,7 +284,8 @@ func TestRestartDeploymentWithLogs(t *testing.T) {
 				}()
 			}
 
-			err := testClient.RestartDeploymentWithLogs(tt.namespace, tt.deployName, logCh)
+			ctx := context.Background()
+			err := testClient.RestartDeploymentWithLogs(ctx, tt.namespace, tt.deployName, logCh)
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {

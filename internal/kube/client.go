@@ -15,9 +15,9 @@ import (
 
 type K8sClientInterface interface {
 	GetPodStatus(namespace, podName string) (string, error)
-	ScaleDeploymentWithLogs(namespace, name string, replicas int32, logCh chan<- string) error
-	RollbackDeploymentWithLogs(namespace, name string, logCh chan<- string) error
-	RestartDeploymentWithLogs(namespace, name string, logCh chan<- string) error
+	ScaleDeploymentWithLogs(ctx context.Context, namespace, name string, replicas int32, logCh chan<- string) error
+	RollbackDeploymentWithLogs(ctx context.Context, namespace, name string, logCh chan<- string) error
+	RestartDeploymentWithLogs(ctx context.Context, namespace, name string, logCh chan<- string) error
 	GetClientset() kubernetes.Interface
 }
 
@@ -77,12 +77,10 @@ func (c *K8sClient) GetPodStatus(namespace, podName string) (string, error) {
 	return err
 }*/
 
-func (c *K8sClient) ScaleDeploymentWithLogs(namespace, name string, replicas int32, logCh chan<- string) error {
+func (c *K8sClient) ScaleDeploymentWithLogs(ctx context.Context, namespace, name string, replicas int32, logCh chan<- string) error {
 	if c.clientset == nil {
 		return fmt.Errorf("client not initialized")
 	}
-
-	ctx := context.TODO()
 
 	log := func(msg string) {
 		if logCh != nil {
@@ -110,7 +108,7 @@ func (c *K8sClient) ScaleDeploymentWithLogs(namespace, name string, replicas int
 	log("🚀 Масштабирование запущено...")
 
 	// Ждём, пока Deployment достигнет нужного количества доступных реплик
-	return wait.PollImmediate(2*time.Second, 2*time.Minute, func() (bool, error) {
+	return wait.PollUntilContextCancel(ctx, 2*time.Second, true, func(ctx context.Context) (bool, error) {
 		updated, err := c.clientset.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			log(fmt.Sprintf("Ошибка чтения Deployment: %v", err))
@@ -139,7 +137,7 @@ func (c *K8sClient) ScaleDeploymentWithLogs(namespace, name string, replicas int
 	return nil // Можно реализовать если надо
 }*/
 
-func (c *K8sClient) RollbackDeploymentWithLogs(namespace, name string, logCh chan<- string) error {
+func (c *K8sClient) RollbackDeploymentWithLogs(ctx context.Context, namespace, name string, logCh chan<- string) error {
 	log := func(msg string) {
 		if logCh != nil {
 			logCh <- msg
@@ -147,7 +145,7 @@ func (c *K8sClient) RollbackDeploymentWithLogs(namespace, name string, logCh cha
 	}
 
 	log("[rollback] Получаем deployment...")
-	dep, err := c.clientset.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	dep, err := c.clientset.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
 		log(fmt.Sprintf("[rollback] Ошибка получения deployment: %v", err))
 		return fmt.Errorf("ошибка получения deployment: %v", err)
@@ -162,7 +160,7 @@ func (c *K8sClient) RollbackDeploymentWithLogs(namespace, name string, logCh cha
 
 	log(fmt.Sprintf("[rollback] Селектор: %s", selector.String()))
 	log("[rollback] Получаем список ReplicaSets...")
-	rsList, err := c.clientset.AppsV1().ReplicaSets(namespace).List(context.TODO(), metav1.ListOptions{
+	rsList, err := c.clientset.AppsV1().ReplicaSets(namespace).List(ctx, metav1.ListOptions{
 		LabelSelector: selector.String(),
 	})
 	if err != nil {
@@ -193,15 +191,15 @@ func (c *K8sClient) RollbackDeploymentWithLogs(namespace, name string, logCh cha
 
 	log("[rollback] Обновляем deployment с шаблоном пода из предыдущего ReplicaSet...")
 	dep.Spec.Template = previousRS.Spec.Template
-	_, err = c.clientset.AppsV1().Deployments(namespace).Update(context.TODO(), dep, metav1.UpdateOptions{})
+	_, err = c.clientset.AppsV1().Deployments(namespace).Update(ctx, dep, metav1.UpdateOptions{})
 	if err != nil {
 		log(fmt.Sprintf("[rollback] Ошибка обновления deployment: %v", err))
 		return fmt.Errorf("ошибка обновления deployment: %v", err)
 	}
 
 	log("[rollback] Ожидание завершения отката...")
-	err = wait.PollImmediate(2*time.Second, 5*time.Minute, func() (bool, error) {
-		dep, err := c.clientset.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	err = wait.PollUntilContextCancel(ctx, 2*time.Second, true, func(ctx context.Context) (bool, error) {
+		dep, err := c.clientset.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			log(fmt.Sprintf("[rollback] Ошибка чтения deployment: %v", err))
 			return false, err
@@ -226,12 +224,10 @@ func (c *K8sClient) RollbackDeploymentWithLogs(namespace, name string, logCh cha
 	return nil
 }
 
-func (c *K8sClient) RestartDeploymentWithLogs(namespace, name string, logCh chan<- string) error {
+func (c *K8sClient) RestartDeploymentWithLogs(ctx context.Context, namespace, name string, logCh chan<- string) error {
 	if c.clientset == nil {
 		return fmt.Errorf("client not initialized")
 	}
-
-	ctx := context.TODO()
 
 	log := func(msg string) {
 		if logCh != nil {
@@ -259,7 +255,7 @@ func (c *K8sClient) RestartDeploymentWithLogs(namespace, name string, logCh chan
 
 	log("🚀 Rollout restart запущен...")
 
-	return wait.PollImmediate(2*time.Second, 2*time.Minute, func() (bool, error) {
+	return wait.PollUntilContextCancel(ctx, 2*time.Second, true, func(ctx context.Context) (bool, error) {
 		updated, err := c.clientset.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			log(fmt.Sprintf("Ошибка чтения Deployment: %v", err))
