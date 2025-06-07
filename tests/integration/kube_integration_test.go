@@ -153,6 +153,9 @@ func TestIntegration(t *testing.T) {
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "test-deployment",
+			Annotations: map[string]string{
+				"deployment.kubernetes.io/revision": "1",
+			},
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: int32Ptr(2),
@@ -255,29 +258,80 @@ func TestIntegration(t *testing.T) {
 	assert.NoError(t, err)
 	fmt.Println(rsInfo)
 
-	// Откатываем deployment
-	fmt.Println("⏪ Откатываем deployment...")
+	// Откат к предыдущей версии
+	fmt.Println("⏪ Откат к предыдущей версии...")
 	logCh = make(chan string, 100)
 	go func() {
 		for msg := range logCh {
 			fmt.Println(msg)
 		}
 	}()
-	err = client.RollbackDeploymentWithLogs(ctx, "test-integration", "test-deployment", logCh)
-	assert.NoError(t, err)
+	err = client.RollbackDeploymentWithLogs(ctx, "test-integration", "test-deployment", 0, logCh)
+	if err != nil {
+		t.Fatalf("Ошибка отката deployment: %v", err)
+	}
 	close(logCh)
 
-	// Ждем отката deployment
-	fmt.Println("⏳ Ждем отката deployment...")
+	// Проверяем, что откат успешен
 	err = waitForDeploymentReady(client, "test-integration", "test-deployment")
-	assert.NoError(t, err)
-	fmt.Println("✅ Deployment откачен")
+	if err != nil {
+		t.Fatalf("Ошибка ожидания готовности deployment после отката: %v", err)
+	}
 
-	// Проверяем ReplicaSets после отката
-	fmt.Println("🔍 Проверяем ReplicaSets после отката...")
-	rsInfo, err = getReplicaSetsInfo(client, "test-integration", "test-deployment")
-	assert.NoError(t, err)
-	fmt.Println(rsInfo)
+	// Проверяем, что версия образа вернулась к предыдущей
+	dep, err := client.GetClientset().AppsV1().Deployments("test-integration").Get(ctx, "test-deployment", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Ошибка получения deployment после отката: %v", err)
+	}
+	if dep.Spec.Template.Spec.Containers[0].Image != "nginx:1.19" {
+		t.Errorf("Неверная версия образа после отката: %s", dep.Spec.Template.Spec.Containers[0].Image)
+	}
+
+	// Откат к конкретной ревизии
+	fmt.Println("⏪ Откат к конкретной ревизии...")
+	// Добавляем задержку перед откатом к конкретной ревизии
+	time.Sleep(5 * time.Second)
+	// Сначала делаем несколько обновлений, чтобы создать историю ревизий
+	for i := 0; i < 3; i++ {
+		dep, err = client.GetClientset().AppsV1().Deployments("test-integration").Get(ctx, "test-deployment", metav1.GetOptions{})
+		if err != nil {
+			t.Fatalf("Ошибка получения deployment: %v", err)
+		}
+		dep.Spec.Template.Spec.Containers[0].Image = fmt.Sprintf("nginx:1.%d", 22+i)
+		_, err = client.GetClientset().AppsV1().Deployments("test-integration").Update(ctx, dep, metav1.UpdateOptions{})
+		if err != nil {
+			t.Fatalf("Ошибка обновления deployment: %v", err)
+		}
+		time.Sleep(2 * time.Second) // Даем время на применение изменений
+	}
+
+	// Откат к ревизии 2 (первое обновление)
+	logCh = make(chan string, 100)
+	go func() {
+		for msg := range logCh {
+			fmt.Println(msg)
+		}
+	}()
+	err = client.RollbackDeploymentWithLogs(ctx, "test-integration", "test-deployment", 2, logCh)
+	if err != nil {
+		t.Fatalf("Ошибка отката к конкретной ревизии: %v", err)
+	}
+	close(logCh)
+
+	// Проверяем, что откат успешен
+	err = waitForDeploymentReady(client, "test-integration", "test-deployment")
+	if err != nil {
+		t.Fatalf("Ошибка ожидания готовности deployment после отката к конкретной ревизии: %v", err)
+	}
+
+	// Проверяем, что версия образа соответствует выбранной ревизии
+	dep, err = client.GetClientset().AppsV1().Deployments("test-integration").Get(ctx, "test-deployment", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Ошибка получения deployment после отката к конкретной ревизии: %v", err)
+	}
+	if dep.Spec.Template.Spec.Containers[0].Image != "nginx:1.20" {
+		t.Errorf("Неверная версия образа после отката к конкретной ревизии: %s", dep.Spec.Template.Spec.Containers[0].Image)
+	}
 
 	// Перезапускаем deployment
 	fmt.Println("🔄 Перезапускаем deployment...")

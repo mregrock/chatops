@@ -4,8 +4,11 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -14,9 +17,9 @@ import (
 )
 
 type K8sClientInterface interface {
-	GetPodStatus(namespace, podName string) (string, error)
+	GetPodStatus(ctx context.Context, namespace, podName string) (string, error)
 	ScaleDeploymentWithLogs(ctx context.Context, namespace, name string, replicas int32, logCh chan<- string) error
-	RollbackDeploymentWithLogs(ctx context.Context, namespace, name string, logCh chan<- string) error
+	RollbackDeploymentWithLogs(ctx context.Context, namespace, name string, revision int64, logCh chan<- string) error
 	RestartDeploymentWithLogs(ctx context.Context, namespace, name string, logCh chan<- string) error
 	GetClientset() kubernetes.Interface
 }
@@ -58,8 +61,8 @@ func initClient(config *rest.Config) (*K8sClient, error) {
 	return &K8sClient{clientset: cs}, nil
 }
 
-func (c *K8sClient) GetPodStatus(namespace, podName string) (string, error) {
-	pod, err := c.clientset.CoreV1().Pods(namespace).Get(context.TODO(), podName, metav1.GetOptions{})
+func (c *K8sClient) GetPodStatus(ctx context.Context, namespace, podName string) (string, error) {
+	pod, err := c.clientset.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
 	if err != nil {
 		return "", err
 	}
@@ -137,7 +140,7 @@ func (c *K8sClient) ScaleDeploymentWithLogs(ctx context.Context, namespace, name
 	return nil // Можно реализовать если надо
 }*/
 
-func (c *K8sClient) RollbackDeploymentWithLogs(ctx context.Context, namespace, name string, logCh chan<- string) error {
+func (c *K8sClient) RollbackDeploymentWithLogs(ctx context.Context, namespace, name string, revision int64, logCh chan<- string) error {
 	log := func(msg string) {
 		if logCh != nil {
 			logCh <- msg
@@ -173,7 +176,6 @@ func (c *K8sClient) RollbackDeploymentWithLogs(ctx context.Context, namespace, n
 		log(fmt.Sprintf("[rollback] RS[%d]: %s, ревизия: %s, replicas: %d, ready: %d, created: %s", i, rs.Name, rs.Annotations["deployment.kubernetes.io/revision"], rs.Status.Replicas, rs.Status.ReadyReplicas, rs.CreationTimestamp.Time.Format(time.RFC3339)))
 	}
 
-	// Сортируем ReplicaSets по времени создания (от новых к старым)
 	sort.Slice(rsList.Items, func(i, j int) bool {
 		return rsList.Items[i].CreationTimestamp.After(rsList.Items[j].CreationTimestamp.Time)
 	})
@@ -183,16 +185,70 @@ func (c *K8sClient) RollbackDeploymentWithLogs(ctx context.Context, namespace, n
 		return fmt.Errorf("недостаточно ревизий для отката (нужно минимум 2)")
 	}
 
-	currentRS := rsList.Items[0]
-	previousRS := rsList.Items[1]
-
-	log(fmt.Sprintf("[rollback] Текущий ReplicaSet: %s (реплики: %d, ревизия: %s)", currentRS.Name, currentRS.Status.Replicas, currentRS.Annotations["deployment.kubernetes.io/revision"]))
-	log(fmt.Sprintf("[rollback] Предыдущий ReplicaSet: %s (реплики: %d, ревизия: %s)", previousRS.Name, previousRS.Status.Replicas, previousRS.Annotations["deployment.kubernetes.io/revision"]))
-
-	log("[rollback] Обновляем deployment с шаблоном пода из предыдущего ReplicaSet...")
-	dep.Spec.Template = previousRS.Spec.Template
-	_, err = c.clientset.AppsV1().Deployments(namespace).Update(ctx, dep, metav1.UpdateOptions{})
+	curRevStr, ok := dep.Annotations["deployment.kubernetes.io/revision"]
+	if !ok {
+		log("[rollback] Не удалось определить текущую ревизию deployment")
+		return fmt.Errorf("не удалось определить текущую ревизию deployment")
+	}
+	curRev, err := strconv.ParseInt(curRevStr, 10, 64)
 	if err != nil {
+		log("[rollback] Не удалось преобразовать ревизию deployment")
+		return fmt.Errorf("не удалось преобразовать ревизию deployment")
+	}
+
+	var targetRS *appsv1.ReplicaSet
+	if revision > 0 {
+		for _, rs := range rsList.Items {
+			if rsRev, ok := rs.Annotations["deployment.kubernetes.io/revision"]; ok {
+				if rsRev == fmt.Sprintf("%d", revision) {
+					targetRS = &rs
+					break
+				}
+			}
+		}
+		if targetRS == nil {
+			log(fmt.Sprintf("[rollback] Ревизия %d не найдена", revision))
+			return fmt.Errorf("ревизия %d не найдена", revision)
+		}
+		log(fmt.Sprintf("[rollback] Найдена целевая ревизия: %s (реплики: %d)", targetRS.Name, targetRS.Status.Replicas))
+	} else {
+		targetRevision := curRev - 1
+		for _, rs := range rsList.Items {
+			if rsRev, ok := rs.Annotations["deployment.kubernetes.io/revision"]; ok {
+				rsRevInt, _ := strconv.ParseInt(rsRev, 10, 64)
+				if rsRevInt == targetRevision {
+					targetRS = &rs
+					break
+				}
+			}
+		}
+		if targetRS == nil {
+			log(fmt.Sprintf("[rollback] Не найдена предыдущая ревизия %d", targetRevision))
+			return fmt.Errorf("не найдена предыдущая ревизия %d", targetRevision)
+		}
+		log(fmt.Sprintf("[rollback] Используем предыдущую ревизию: %s (реплики: %d)", targetRS.Name, targetRS.Status.Replicas))
+	}
+
+	log("[rollback] Обновляем deployment с шаблоном пода из выбранного ReplicaSet...")
+
+	// --- Исправление: повторяем Update при конфликте ---
+	for attempt := 0; attempt < 5; attempt++ {
+		// Получаем актуальный deployment
+		dep, err = c.clientset.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			log(fmt.Sprintf("[rollback] Ошибка получения deployment перед Update: %v", err))
+			return fmt.Errorf("ошибка получения deployment перед Update: %v", err)
+		}
+		dep.Spec.Template = targetRS.Spec.Template
+		_, err = c.clientset.AppsV1().Deployments(namespace).Update(ctx, dep, metav1.UpdateOptions{})
+		if err == nil {
+			break
+		}
+		if strings.Contains(err.Error(), "the object has been modified") {
+			log("[rollback] Конфликт версий deployment, пробуем ещё раз...")
+			time.Sleep(1 * time.Second)
+			continue
+		}
 		log(fmt.Sprintf("[rollback] Ошибка обновления deployment: %v", err))
 		return fmt.Errorf("ошибка обновления deployment: %v", err)
 	}

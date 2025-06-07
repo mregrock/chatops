@@ -84,7 +84,7 @@ func TestGetPodStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			status, err := testClient.GetPodStatus(tt.namespace, tt.podName)
+			status, err := testClient.GetPodStatus(context.Background(), tt.namespace, tt.podName)
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
@@ -343,6 +343,225 @@ func TestInitInCluster(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRollbackDeploymentWithLogs(t *testing.T) {
+	fakeClient := fake.NewSimpleClientset()
+	client := kube.NewTestClient(fakeClient)
+
+	// Создаем тестовый deployment
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-deployment",
+			Namespace: "test-ns",
+			Annotations: map[string]string{
+				"deployment.kubernetes.io/revision": "3",
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: int32Ptr(2),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": "test"},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"app": "test"},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "test",
+							Image: "nginx:1.21",
+						},
+					},
+				},
+			},
+		},
+		Status: appsv1.DeploymentStatus{
+			AvailableReplicas: 2,
+			UpdatedReplicas:   2,
+			Replicas:          2,
+		},
+	}
+
+	// Создаем текущий ReplicaSet
+	currentRS := &appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-rs-current",
+			Namespace: "test-ns",
+			Labels:    map[string]string{"app": "test"},
+			Annotations: map[string]string{
+				"deployment.kubernetes.io/revision": "3",
+			},
+		},
+		Spec: appsv1.ReplicaSetSpec{
+			Replicas: int32Ptr(2),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": "test"},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"app": "test"},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "test",
+							Image: "nginx:1.23",
+						},
+					},
+				},
+			},
+		},
+		Status: appsv1.ReplicaSetStatus{
+			Replicas:      2,
+			ReadyReplicas: 2,
+		},
+	}
+
+	// Создаем предыдущий ReplicaSet
+	previousRS := &appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-rs-previous",
+			Namespace: "test-ns",
+			Labels:    map[string]string{"app": "test"},
+			Annotations: map[string]string{
+				"deployment.kubernetes.io/revision": "2",
+			},
+		},
+		Spec: appsv1.ReplicaSetSpec{
+			Replicas: int32Ptr(2),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": "test"},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"app": "test"},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "test",
+							Image: "nginx:1.22",
+						},
+					},
+				},
+			},
+		},
+		Status: appsv1.ReplicaSetStatus{
+			Replicas:      2,
+			ReadyReplicas: 2,
+		},
+	}
+
+	// Создаем старый ReplicaSet
+	oldRS := &appsv1.ReplicaSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-rs-old",
+			Namespace: "test-ns",
+			Labels:    map[string]string{"app": "test"},
+			Annotations: map[string]string{
+				"deployment.kubernetes.io/revision": "1",
+			},
+		},
+		Spec: appsv1.ReplicaSetSpec{
+			Replicas: int32Ptr(2),
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": "test"},
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"app": "test"},
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{
+						{
+							Name:  "test",
+							Image: "nginx:1.21",
+						},
+					},
+				},
+			},
+		},
+		Status: appsv1.ReplicaSetStatus{
+			Replicas:      2,
+			ReadyReplicas: 2,
+		},
+	}
+
+	_, err := client.GetClientset().AppsV1().Deployments("test-ns").Create(context.Background(), dep, metav1.CreateOptions{})
+	assert.NoError(t, err)
+
+	_, err = client.GetClientset().AppsV1().ReplicaSets("test-ns").Create(context.Background(), currentRS, metav1.CreateOptions{})
+	assert.NoError(t, err)
+
+	_, err = client.GetClientset().AppsV1().ReplicaSets("test-ns").Create(context.Background(), previousRS, metav1.CreateOptions{})
+	assert.NoError(t, err)
+
+	_, err = client.GetClientset().AppsV1().ReplicaSets("test-ns").Create(context.Background(), oldRS, metav1.CreateOptions{})
+	assert.NoError(t, err)
+
+	// Тест отката к предыдущей версии
+	t.Run("Rollback to previous version", func(t *testing.T) {
+		logCh := make(chan string, 100)
+		done := make(chan struct{})
+		go func() {
+			for msg := range logCh {
+				t.Log(msg)
+			}
+			close(done)
+		}()
+
+		err := client.RollbackDeploymentWithLogs(context.Background(), "test-ns", "test-deployment", 0, logCh)
+		assert.NoError(t, err)
+		close(logCh)
+		<-done // Ждем завершения горутины
+
+		// Проверяем, что deployment обновился с шаблоном из предыдущего ReplicaSet
+		updatedDep, err := client.GetClientset().AppsV1().Deployments("test-ns").Get(context.Background(), "test-deployment", metav1.GetOptions{})
+		assert.NoError(t, err)
+		assert.Equal(t, "nginx:1.22", updatedDep.Spec.Template.Spec.Containers[0].Image)
+	})
+
+	// Тест отката к конкретной ревизии
+	t.Run("Rollback to specific revision", func(t *testing.T) {
+		logCh := make(chan string, 100)
+		done := make(chan struct{})
+		go func() {
+			for msg := range logCh {
+				t.Log(msg)
+			}
+			close(done)
+		}()
+
+		err := client.RollbackDeploymentWithLogs(context.Background(), "test-ns", "test-deployment", 1, logCh)
+		assert.NoError(t, err)
+		close(logCh)
+		<-done // Ждем завершения горутины
+
+		// Проверяем, что deployment обновился с шаблоном из указанной ревизии
+		updatedDep, err := client.GetClientset().AppsV1().Deployments("test-ns").Get(context.Background(), "test-deployment", metav1.GetOptions{})
+		assert.NoError(t, err)
+		assert.Equal(t, "nginx:1.21", updatedDep.Spec.Template.Spec.Containers[0].Image)
+	})
+
+	// Тест отката к несуществующей ревизии
+	t.Run("Rollback to non-existent revision", func(t *testing.T) {
+		logCh := make(chan string, 100)
+		done := make(chan struct{})
+		go func() {
+			for msg := range logCh {
+				t.Log(msg)
+			}
+			close(done)
+		}()
+
+		err := client.RollbackDeploymentWithLogs(context.Background(), "test-ns", "test-deployment", 999, logCh)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "ревизия 999 не найдена")
+		close(logCh)
+		<-done // Ждем завершения горутины
+	})
 }
 
 // Вспомогательная функция для создания указателя на int32
