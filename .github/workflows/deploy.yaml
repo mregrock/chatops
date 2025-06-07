@@ -36,4 +36,4 @@ jobs:
             echo "${{ secrets.KUBECONFIG_BASE64 }}" | base64 -d > ./kubeconfig
           
             docker compose up -d --build
-А
+
