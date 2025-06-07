@@ -4,9 +4,9 @@
 package integration
 
 import (
+	"chatops/internal/monitoring"
 	"context"
 	"fmt"
-	"hackaton/internal/monitoring"
 	"testing"
 )
 

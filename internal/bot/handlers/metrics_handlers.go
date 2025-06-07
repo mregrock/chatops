@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"hackaton/internal/monitoring"
+	"chatops/internal/monitoring"
 
 	telebot "gopkg.in/telebot.v3"
 )
@@ -44,13 +44,13 @@ func (h *Handler) MetricHandler(c telebot.Context) error {
 	var allValues string
 
 	for _, result := range response.Data.Result {
-    	for _, v := range result.Value {
-        	allValues += fmt.Sprintf("%v ", v)
-    }	
+		allValues += fmt.Sprintf("%v: ", result.Metric["pod"])
+		for _, v := range result.Value {
+			allValues += fmt.Sprintf("%v ", v)
+		}
 	}
 
 	allValues = strings.TrimSpace(allValues) // убрать лишний пробел в конце
-
 
 	return c.Send(result + allValues)
 

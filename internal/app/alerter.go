@@ -1,13 +1,13 @@
 package app
 
 import (
+	"chatops/internal/monitoring"
 	"context"
 	"fmt"
-	"hackaton/internal/monitoring"
 	"log"
 	"strings"
 
-	"db/models"
+	"chatops/internal/db/models"
 )
 
 type MonitoringClient interface {

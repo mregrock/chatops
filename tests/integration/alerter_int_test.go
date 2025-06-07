@@ -4,16 +4,16 @@ package integration
 
 import (
 	"bytes"
+	"chatops/internal/app"
+	"chatops/internal/monitoring"
 	"context"
-	"hackaton/internal/app"
-	"hackaton/internal/monitoring"
 	"log"
 	"os"
 	"strings"
 	"testing"
 
-	"db/config"
-	"db/repository"
+	"chatops/internal/db/config"
+	"chatops/internal/db/repository"
 )
 
 func TestAlerter_Integration_CheckAndNotify(t *testing.T) {

@@ -1,8 +1,9 @@
 package main
 
 import (
-	"hackaton/internal/bot/handlers"
-	"hackaton/internal/monitoring"
+	"chatops/internal/bot/handlers"
+	"chatops/internal/monitoring"
+
 	"log"
 	"os"
 	"strings"
