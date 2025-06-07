@@ -1,54 +1,33 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"strings"
 	"time"
-
+	"chatops/internal/monitoring/client.go"
 	"github.com/joho/godotenv"
 	telebot "gopkg.in/telebot.v3"
 )
 
-func statusHandle(c telebot.Context) error {
-	// TODO: Реализовать логику для команды status
-	return c.Send("Выполняется команда status...")
-}
 
-func metricHandle(c telebot.Context) error {
-	// TODO: Реализовать логику для команды metric
-	return c.Send("Выполняется команда metric...")
-}
 
-func scaleHandle(c telebot.Context) error {
-	// TODO: Реализовать логику для команды scale
-	return c.Send("Выполняется команда scale...")
-}
 
-func restartHadle(c telebot.Context) error {
-	// TODO: Реализовать логику для команды restart
-	return c.Send("Выполняется команда restart...")
-}
 
-func historyHandle(c telebot.Context) error {
-	// TODO: Реализовать логику для команды history
-	return c.Send("Выполняется команда history...")
-}
 
-func operationsHandle(c telebot.Context) error {
-	// TODO: Реализовать логику для команды operations
-	return c.Send("Выполняется команда operations...")
-}
 
-func revisionsHandle(c telebot.Context) error {
+
+
+func revisionsHandler(c telebot.Context) error {
 	// TODO: Реализовать логику для команды revisions
 	return c.Send("Выполняется команда revisions...")
 }
 
-func rollbackHandle(c telebot.Context) error {
-	// TODO: Реализовать логику для команды rollback
-	return c.Send("Выполняется команда rollback...")
-}
+
+
+
+
 
 type handlerFunc func(telebot.Context) error
 
@@ -117,7 +96,8 @@ func main() {
 
 	/start - чтобы авторизоваться
 	/status [name\id] - ?
-	/metric
+	/metric [сервис] [метрика] 
+	/list_metric [сервис] [метрика] 
 	/scale
 	/restart
 	/rollback
@@ -127,14 +107,15 @@ func main() {
 	/help - выводит все доступные команды`
 
 	var commandHandlers = map[string]handlerFunc{
-		"/status":     statusHandle,
-		"/metric":     metricHandle,
-		"/scale":      scaleHandle,
-		"/restart":    restartHadle,
-		"/rollback":   rollbackHandle,
-		"/history":    historyHandle,
-		"/operations": operationsHandle,
-		"/revisions":  revisionsHandle,
+		"/status":     statusHandler,
+		"/metric":     metricHandler,
+		"/list_metric":     listMetricHandler,
+		"/scale":      scaleHandler,
+		"/restart":    restartHadler,
+		"/rollback":   rollbackHandler,
+		"/history":    historyHandler,
+		"/operations": operationsHandler,
+		"/revisions":  revisionsHandler,
 	}
 	var userState = make(map[int64]string)
 	var userLogin = make(map[int64]string)
@@ -184,13 +165,15 @@ func main() {
 	commands := []telebot.Command{
 		{Text: "start", Description: "Авторизация в системе"},
 		{Text: "status", Description: "Проверка статуса [name|id]"},
-		{Text: "metric", Description: "Получение метрик"},
+		{Text: "metric", Description: "Получение метрик сервиса"},
+		{Text: "list_metric", Description: "Полуение списка доступных "},
 		{Text: "scale", Description: "Масштабирование"},
 		{Text: "restart", Description: "Перезапуск"},
 		{Text: "rollback", Description: "Откат изменений"},
 		{Text: "history", Description: "История операций"},
 		{Text: "operations", Description: "Список операций"},
 		{Text: "revisions", Description: "Список ревизий"},
+		
 		{Text: "help", Description: "Список доступных команд"},
 	}
 	if err := bot.SetCommands(commands); err != nil {
