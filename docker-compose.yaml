@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: chatops-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_NAME}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    container_name: chatops-app
+    restart: always
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_NAME}
+
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      PROMETHEUS_URL: ${PROMETHEUS_URL}
+      ALERTMANAGER_URL: ${ALERTMANAGER_URL}
+      GPT_KEY: ${GPT_KEY}
+      GPT_CATALOG: ${GPT_CATALOG}
+
+    volumes:
+      - ./kubeconfig:/root/.kube/config:ro
+    depends_on:
+      - db
+
+volumes:
+  postgres_data: {}
