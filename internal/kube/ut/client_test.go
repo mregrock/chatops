@@ -718,6 +718,69 @@ func TestListAvailableRevisions(t *testing.T) {
 	})
 }
 
+func TestGetPodLogs(t *testing.T) {
+	// Создаем тестовый под
+	testPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-pod",
+			Namespace: "test-namespace",
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name:  "nginx",
+					Image: "nginx:latest",
+				},
+			},
+		},
+	}
+
+	// Создаем фейковый клиент
+	fakeClient := fake.NewSimpleClientset(testPod)
+	testClient = kube.NewTestClient(fakeClient)
+
+	tests := []struct {
+		name      string
+		namespace string
+		podName   string
+		opts      *kube.PodLogsOptions
+		wantErr   bool
+	}{
+		{
+			name:      "Успешное получение логов",
+			namespace: "test-namespace",
+			podName:   "test-pod",
+			opts: &kube.PodLogsOptions{
+				TailLines:    100,
+				SinceSeconds: 3600,
+				Timestamps:   true,
+			},
+			wantErr: false,
+		},
+		{
+			name:      "Без опций",
+			namespace: "test-namespace",
+			podName:   "test-pod",
+			opts:      nil,
+			wantErr:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			logs, err := testClient.GetPodLogs(context.Background(), tt.namespace, tt.podName, tt.opts)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Empty(t, logs)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, logs)
+				t.Logf("Получены логи пода %s:\n%s", tt.podName, logs)
+			}
+		})
+	}
+}
+
 // Вспомогательная функция для создания указателя на int32
 func int32Ptr(i int32) *int32 {
 	return &i
