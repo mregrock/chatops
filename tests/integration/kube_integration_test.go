@@ -555,3 +555,115 @@ func waitForDeploymentReady(client *k8sclient.K8sClient, namespace, name string)
 		return ready, nil
 	})
 }
+
+func TestIntegrationGetPodLogs(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Пропускаем интеграционный тест в режиме short")
+	}
+
+	ctx := context.Background()
+	fmt.Println("🚀 Начинаем интеграционный тест получения логов...")
+
+	kubeconfig := os.Getenv("KUBECONFIG")
+	if kubeconfig == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			t.Fatalf("Ошибка получения домашней директории: %v", err)
+		}
+		kubeconfig = filepath.Join(home, ".kube", "config")
+	}
+	fmt.Printf("📁 Используем kubeconfig: %s\n", kubeconfig)
+
+	client, err := k8sclient.InitClientFromKubeconfig(kubeconfig)
+	assert.NoError(t, err)
+	fmt.Println("✅ Клиент Kubernetes инициализирован")
+
+	// Удаляем namespace test-integration, если он существует
+	fmt.Println("🗑️  Удаляем namespace test-integration, если он существует...")
+	err = client.GetClientset().CoreV1().Namespaces().Delete(context.TODO(), "test-integration", metav1.DeleteOptions{})
+	if err != nil {
+		fmt.Printf("⚠️  Ошибка удаления namespace: %v\n", err)
+	}
+
+	// Ждем удаления namespace
+	fmt.Println("⏳ Ждем удаления namespace...")
+	err = wait.PollImmediate(2*time.Second, 1*time.Minute, func() (bool, error) {
+		_, err := client.GetClientset().CoreV1().Namespaces().Get(context.TODO(), "test-integration", metav1.GetOptions{})
+		if err != nil {
+			return true, nil
+		}
+		return false, nil
+	})
+	assert.NoError(t, err)
+	fmt.Println("✅ Namespace удален")
+
+	// Создаем namespace test-integration
+	fmt.Println("📦 Создаем namespace test-integration...")
+	_, err = client.GetClientset().CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-integration",
+		},
+	}, metav1.CreateOptions{})
+	assert.NoError(t, err)
+	fmt.Println("✅ Namespace создан")
+
+	defer func() {
+		fmt.Printf("🧹 Очистка: удаляем namespace %s...\n", "test-integration")
+		_ = client.GetClientset().CoreV1().Namespaces().Delete(context.TODO(), "test-integration", metav1.DeleteOptions{})
+	}()
+
+	// Создаем под с nginx
+	fmt.Println("📦 Создаем под с nginx...")
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-nginx-pod",
+			Namespace: "test-integration",
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{
+					Name:  "nginx",
+					Image: "nginx:latest",
+					Ports: []corev1.ContainerPort{
+						{
+							ContainerPort: 80,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	_, err = client.GetClientset().CoreV1().Pods("test-integration").Create(context.TODO(), pod, metav1.CreateOptions{})
+	assert.NoError(t, err)
+	fmt.Println("✅ Под создан")
+
+	// Ждем, пока под будет готов
+	fmt.Println("⏳ Ждем готовности пода...")
+	err = wait.PollImmediate(2*time.Second, 2*time.Minute, func() (bool, error) {
+		pod, err := client.GetClientset().CoreV1().Pods("test-integration").Get(context.TODO(), "test-nginx-pod", metav1.GetOptions{})
+		if err != nil {
+			return false, err
+		}
+		return pod.Status.Phase == corev1.PodRunning, nil
+	})
+	assert.NoError(t, err)
+	fmt.Println("✅ Под готов")
+
+	// Получаем логи пода
+	fmt.Println("📋 Получаем логи пода...")
+	logs, err := client.GetPodLogs(ctx, "test-integration", "test-nginx-pod", &k8sclient.PodLogsOptions{
+		TailLines:    10,
+		SinceSeconds: 3600,
+		Timestamps:   true,
+	})
+	assert.NoError(t, err)
+	assert.NotEmpty(t, logs)
+	fmt.Printf("📝 Получены логи пода:\n%s\n", logs)
+
+	// Проверяем, что логи содержат ожидаемые строки
+	assert.Contains(t, logs, "nginx")
+	assert.Contains(t, logs, "worker process")
+
+	fmt.Println("🎉 Интеграционный тест получения логов успешно завершен!")
+}
