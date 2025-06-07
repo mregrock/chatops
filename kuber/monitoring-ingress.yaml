@@ -10,7 +10,7 @@ metadata:
     nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
 spec:
   rules:
-    - host: "prometheus.158.160.173.53.nip.io" # sorry for that
+    - host: "prometheus.example.com"
       http:
         paths:
           - path: /
@@ -33,7 +33,7 @@ metadata:
     nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
 spec:
   rules:
-    - host: "alertmanager.158.160.173.53.nip.io" # sorry for that
+    - host: "alertmanager.example.com"
       http:
         paths:
           - path: /
