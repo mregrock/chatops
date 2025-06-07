@@ -42,3 +42,10 @@ func GetDutyUsers() ([]models.User, error) {
 	err := config.DB.Where("is_duty = ?", true).Find(&users).Error
 	return users, err
 }
+
+// AuthenticateUser проверяет существование пользователя по логину и паролю
+func AuthenticateUser(login, password string) bool {
+	var user models.User
+	err := config.DB.Where("login = ? AND password = ?", login, password).First(&user).Error
+	return err == nil
+}
