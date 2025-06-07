@@ -406,3 +406,5 @@ FodyWeavers.xsd
 *.sln.iml
 .env
 .gitignore
+go.mod
+go.sum

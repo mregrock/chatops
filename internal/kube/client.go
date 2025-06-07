@@ -9,6 +9,7 @@ import (
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -23,6 +24,18 @@ type RevisionInfo struct {
 	Image    string
 }
 
+// PodLogsOptions содержит опции для получения логов пода
+type PodLogsOptions struct {
+	// Previous получает логи предыдущего контейнера
+	Previous bool
+	// TailLines ограничивает количество последних строк логов
+	TailLines int64
+	// SinceSeconds ограничивает логи временным интервалом в секундах
+	SinceSeconds int64
+	// Timestamps добавляет временные метки к логам
+	Timestamps bool
+}
+
 type K8sClientInterface interface {
 	GetPodStatus(ctx context.Context, namespace, podName string) (string, error)
 	ScaleDeploymentWithLogs(ctx context.Context, namespace, name string, replicas int32, logCh chan<- string) error
@@ -30,6 +43,7 @@ type K8sClientInterface interface {
 	RestartDeploymentWithLogs(ctx context.Context, namespace, name string, logCh chan<- string) error
 	ListAvailableRevisions(ctx context.Context, namespace, deploymentName string) ([]RevisionInfo, error)
 	GetClientset() kubernetes.Interface
+	GetPodLogs(ctx context.Context, namespace, podName string, opts *PodLogsOptions) (string, error)
 }
 
 type K8sClient struct {
@@ -392,4 +406,26 @@ func (c *K8sClient) ListAvailableRevisions(ctx context.Context, namespace, deplo
 		return revisions[i].Revision < revisions[j].Revision
 	})
 	return revisions, nil
+}
+
+// GetPodLogs возвращает логи пода
+func (c *K8sClient) GetPodLogs(ctx context.Context, namespace, podName string, opts *PodLogsOptions) (string, error) {
+	if c.clientset == nil {
+		return "", fmt.Errorf("client not initialized")
+	}
+
+	podLogOptions := &corev1.PodLogOptions{}
+	if opts != nil {
+		podLogOptions.Previous = opts.Previous
+		podLogOptions.TailLines = &opts.TailLines
+		podLogOptions.SinceSeconds = &opts.SinceSeconds
+		podLogOptions.Timestamps = opts.Timestamps
+	}
+
+	logs, err := c.clientset.CoreV1().Pods(namespace).GetLogs(podName, podLogOptions).DoRaw(ctx)
+	if err != nil {
+		return "", fmt.Errorf("ошибка получения логов пода %s: %v", podName, err)
+	}
+
+	return string(logs), nil
 }
