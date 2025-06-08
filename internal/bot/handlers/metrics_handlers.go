@@ -99,13 +99,5 @@ func StatusHandler(c telebot.Context) error {
 
 
 
-// OperationsHandler - заглушка
-// func (h *Handler) OperationsHandler(c telebot.Context) error {
-// 	return c.Send("Not implemented")
-// }
 
 
-func RevisionsHandler(c telebot.Context) error {
-	// TODO: Реализовать логику для команды revisions
-	return c.Send("Выполняется команда revisions...")
-}

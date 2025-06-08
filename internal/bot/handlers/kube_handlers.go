@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"chatops/internal/kube"
+
 	telebot "gopkg.in/telebot.v3"
 )
 
@@ -29,30 +30,30 @@ func ScaleHandler(c telebot.Context) error {
 	}
 	namespace := data[0]
 	name := data[1]
-	logCh := make(chan string)
+	
 	num, err := strconv.Atoi(parts[2])
 	if err != nil {
 		return c.Send("Ошибки при чтении числа реплик ")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
+	logCh := make(chan string)
+	go func() {
+        for msg := range logCh {
+            c.Send(msg) // Отправляем каждое сообщение сразу
+        }
+    }()
 	err = GlobalKubeClient.ScaleDeploymentWithLogs(ctx, namespace, name, int32(num), logCh)
 	if err != nil {
-		return c.Send("Ошибка при выполнении команды scale: %v", err)
+		return c.Send("Ошибка при выполнении команды: %v", err)
 	}
 
-	var result string
-	for msg := range logCh {
-		result += msg
-	}
-
-	return c.Send(result)
+	return nil
 }
 
 // kube
 func RestartHandler(c telebot.Context) error {
-	
+
 	parts := strings.SplitN(c.Text(), " ", 2)
 	if len(parts) < 2 {
 		return c.Send("Неправильное кол-во параметров ")
@@ -63,23 +64,21 @@ func RestartHandler(c telebot.Context) error {
 	}
 	namespace := data[0]
 	name := data[1]
-	logCh := make(chan string)
-	
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-
+	logCh := make(chan string)
+	go func() {
+        for msg := range logCh {
+            c.Send(msg) // Отправляем каждое сообщение сразу
+        }
+    }()
 	err := GlobalKubeClient.RestartDeploymentWithLogs(ctx, namespace, name, logCh)
 	if err != nil {
-		return c.Send("Ошибка при выполнении команды scale: %v", err)
-	}
+        return c.Send("Ошибка при выполнении команды: %v", err)
+    }
 
-	var result string
-	for msg := range logCh {
-		result += msg
-	}
-
-	return c.Send(result)
+	return nil
 }
 
 // kube
@@ -94,24 +93,28 @@ func RollbackHandler(c telebot.Context) error {
 	}
 	namespace := data[0]
 	name := data[1]
-	logCh := make(chan string)
 	num, err := strconv.ParseInt(parts[2], 10, 64)
 	if err != nil {
 		return c.Send("Ошибки при чтении числа реплик ")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-
+	logCh := make(chan string)
+	go func() {
+        for msg := range logCh {
+            c.Send(msg) // Отправляем каждое сообщение сразу
+        }
+    }()
 	err = GlobalKubeClient.RollbackDeploymentWithLogs(ctx, namespace, name, num, logCh)
 	if err != nil {
-		return c.Send("Ошибка при выполнении команды scale: %v", err)
+		return c.Send("Ошибка при выполнении команды: %v", err)
 	}
 
-	var result string
-	for msg := range logCh {
-		result += msg
-	}
+	return nil
 
-	return c.Send(result)
-	
+}
+
+func RevisionsHandler(c telebot.Context) error {
+	// TODO: Реализовать логику для команды revisions
+	return c.Send("Выполняется команда revisions...")
 }
