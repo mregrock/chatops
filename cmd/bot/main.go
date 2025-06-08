@@ -1,21 +1,33 @@
 package main
 
 import (
+	"chatops/internal/app"
 	"chatops/internal/bot/handlers"
 	"chatops/internal/db/migrations"
-	"chatops/internal/monitoring"
 	"chatops/internal/kube"
+	"chatops/internal/monitoring"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/joho/godotenv"
 	telebot "gopkg.in/telebot.v3"
 )
 
+type UserCredentials struct {
+	Login    string
+	Password string
+}
 
+var (
+	userState      = make(map[int64]string)
+	userCreds      = make(map[int64]UserCredentials)
+	userAuthStatus = make(map[int64]bool)
+)
 
 type handlerFunc func(telebot.Context) error
 
@@ -60,7 +72,7 @@ func withConfirmation(handler handlerFunc) handlerFunc {
 }
 
 func main() {
-    err := godotenv.Load()
+	err := godotenv.Load()
 	if err != nil {
 		log.Println("Не удалось загрузить .env файл, используются переменные окружения системы")
 	}
@@ -68,15 +80,19 @@ func main() {
 	migrations.AutoMigrate()
 
 	token := os.Getenv("TELEGRAM_BOT_TOKEN")
-
 	prometheus_url := os.Getenv("PROMETHEUS_URL")
 	alertmanager_url := os.Getenv("ALERTMANAGER_URL")
 
 	monitorClient, err := monitoring.NewClient(prometheus_url, alertmanager_url)
-
 	if err != nil {
 		log.Fatal(err)
 	}
+	dbAdapter := &app.DBAdapter{}
+
+	alerter := app.NewAlerter(monitorClient, dbAdapter)
+	poller := app.NewAlertPoller(alerter, 30*time.Second)
+	poller.Start()
+	log.Println("Alert poller started")
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -125,16 +141,15 @@ func main() {
 		"/operations":  handlers.OperationsHandler,
 		"/revisions":   handlers.RevisionsHandler,
 	}
-	var userState = make(map[int64]string)
-	var userLogin = ""
-	var userPassword = ""
-	var userStatusAuthorization = false
 
 	bot.Handle("/start", func(c telebot.Context) error {
 		userID := c.Sender().ID
 		userState[userID] = "login"
+		delete(userCreds, userID)
+		delete(userAuthStatus, userID)
 		return c.Send("Введите свой логин:")
 	})
+
 	bot.Handle("/help", func(c telebot.Context) error {
 		return c.Send(helpMsg)
 	})
@@ -146,7 +161,7 @@ func main() {
 			if _, ok := userState[userID]; ok {
 				return nil
 			}
-			if userStatusAuthorization {
+			if isAuthorized, ok := userAuthStatus[userID]; ok && isAuthorized {
 				parts := strings.SplitN(text, " ", 2)
 				cmd := parts[0]
 				if handler, ok := commandHandlers[cmd]; ok {
@@ -160,23 +175,37 @@ func main() {
 			switch userState[userID] {
 			case "login":
 				userState[userID] = "password"
-				userLogin = c.Text()
+				userCreds[userID] = UserCredentials{
+					Login: c.Text(),
+				}
 				return c.Send("Теперь введите пароль:")
 			case "password":
 				delete(userState, userID)
-				userPassword = c.Text()
-				userStatusAuthorization = handlers.ProofLoginPaswordHandler(userLogin, userPassword)
-				if userStatusAuthorization {
+				creds := userCreds[userID]
+				creds.Password = c.Text()
+				userCreds[userID] = creds
+
+				isAuthorized := handlers.ProofLoginPaswordHandler(
+					creds.Login,
+					creds.Password,
+				)
+
+				userAuthStatus[userID] = isAuthorized
+
+				if isAuthorized {
 					return c.Send("Авторизация успешна!")
-				} else {
-					return c.Send("Неверный логин или пароль.")
 				}
+
+				delete(userCreds, userID)
+				delete(userAuthStatus, userID)
+				return c.Send("Неверный логин или пароль.")
+
 			default:
 				return c.Send("Непонятные входные данные или что то пошло не так.")
 			}
 		}
-
 	})
+
 	commands := []telebot.Command{
 		{Text: "start", Description: "Авторизация в системе"},
 		{Text: "status", Description: "Проверка статуса [name|id]"},
@@ -188,12 +217,29 @@ func main() {
 		{Text: "history", Description: "История операций"},
 		{Text: "operations", Description: "Список операций"},
 		{Text: "revisions", Description: "Список ревизий"},
-
 		{Text: "help", Description: "Список доступных команд"},
 	}
 	if err := bot.SetCommands(commands); err != nil {
 		log.Println("Ошибка при установке команд:", err)
 	}
 
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		log.Println("Получен сигнал завершения, останавливаем сервисы...")
+
+		log.Println("Останавливаем Alert poller...")
+		poller.Stop()
+		log.Println("Alert poller остановлен")
+
+		log.Println("Останавливаем бота...")
+		bot.Stop()
+		log.Println("Бот остановлен")
+		os.Exit(0)
+	}()
+
+	log.Println("Бот запущен и готов к работе")
 	bot.Start()
 }
