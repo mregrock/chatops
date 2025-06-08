@@ -2,6 +2,7 @@ package monitoring
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -52,11 +53,17 @@ func NewClient(prometheusURL, alertmanagerURL string) (*Client, error) {
 		}
 	}
 
+	// Создаем транспорт, который игнорирует проверку TLS-сертификата
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+
 	return &Client{
 		prometheusURL:   prometheusURL,
 		alertmanagerURL: alertmanagerURL,
 		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout:   10 * time.Second,
+			Transport: tr, // Используем кастомный транспорт
 		},
 	}, nil
 }
