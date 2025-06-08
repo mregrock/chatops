@@ -36,6 +36,7 @@ jobs:
             echo "ALERTMANAGER_URL=${{ secrets.ALERTMANAGER_URL }}" >> .env
             
             echo "Init kuber config..."
+            mkdir -p ./kube
             echo "${{ secrets.KUBECONFIG_BASE64 }}" | base64 -d > ./kube/config
             
             KUBECONFIG=/root/.kube/config

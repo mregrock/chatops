@@ -32,7 +32,7 @@ services:
       KUBECONFIG: /root/.kube/config
 
     volumes:
-      - ./kubeconfig:/root/.kube/config:ro
+      - ./kube:/root/.kube:ro
     depends_on:
       - db
 
