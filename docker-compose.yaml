@@ -12,6 +12,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  # страховка, если сломается автопизация в prometheus
   prometheus-pf:
     image: bitnami/kubectl:latest
     container_name: prom-pf
@@ -19,6 +20,7 @@ services:
     network_mode: "host"
     restart: unless-stopped
 
+  # страховка, если сломается автопизация в alertmanager
   alertmanager-pf:
     image: bitnami/kubectl:latest
     container_name: alert-pf
