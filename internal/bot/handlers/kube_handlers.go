@@ -33,7 +33,12 @@ func ScaleHandler(c telebot.Context) error {
 	}
 	namespace := data[0]
 	name := data[1]
-	
+	for _, msg := range parts {
+		str := fmt.Sprintf("msg: %s", msg)
+		c.Send(str) // Отправляем каждое сообщение сразу
+		fmt.Print(str)
+	}
+
 	num, err := strconv.Atoi(parts[2])
 	if err != nil {
 		return c.Send("Ошибки при чтении числа реплик ")
