@@ -2,6 +2,7 @@ package monitoring
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -37,9 +38,17 @@ type Client struct {
 	httpClient      *http.Client
 	prometheusURL   string
 	alertmanagerURL string
+	user            string
+	pass            string
 }
 
 func NewClient(prometheusURL, alertmanagerURL string) (*Client, error) {
+	var user, pass string
+	if u, err := url.Parse(prometheusURL); err == nil && u.User != nil {
+		user = u.User.Username()
+		pass, _ = u.User.Password()
+	}
+
 	if prometheusURL != "" {
 		if _, err := url.ParseRequestURI(prometheusURL); err != nil {
 			return nil, fmt.Errorf("invalid prometheus URL: %w", err)
@@ -52,12 +61,20 @@ func NewClient(prometheusURL, alertmanagerURL string) (*Client, error) {
 		}
 	}
 
+	// Создаем транспорт, который игнорирует проверку TLS-сертификата
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+
 	return &Client{
 		prometheusURL:   prometheusURL,
 		alertmanagerURL: alertmanagerURL,
 		httpClient: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout:   10 * time.Second,
+			Transport: tr, // Используем кастомный транспорт
 		},
+		user: user,
+		pass: pass,
 	}, nil
 }
 
@@ -66,6 +83,10 @@ func (c *Client) GetActiveAlerts(ctx context.Context) ([]Alert, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	if c.user != "" && c.pass != "" {
+		req.SetBasicAuth(c.user, c.pass)
 	}
 
 	resp, err := c.httpClient.Do(req)
@@ -93,8 +114,12 @@ func (c *Client) ListMetrics(ctx context.Context, jobName string) ([]string, err
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
+	if c.user != "" && c.pass != "" {
+		req.SetBasicAuth(c.user, c.pass)
+	}
+
 	q := req.URL.Query()
-	q.Add("match[]", fmt.Sprintf("{job=%q}", jobName))
+	q.Add("match[]", fmt.Sprintf(`{job=~".*%s.*"}`, jobName))
 	req.URL.RawQuery = q.Encode()
 
 	resp, err := c.httpClient.Do(req)
@@ -124,6 +149,10 @@ func (c *Client) Query(ctx context.Context, query string) (*PrometheusQueryRespo
 	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	if c.user != "" && c.pass != "" {
+		req.SetBasicAuth(c.user, c.pass)
 	}
 
 	q := req.URL.Query()

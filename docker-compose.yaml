@@ -12,6 +12,22 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  # страховка, если сломается автопизация в prometheus
+  prometheus-pf:
+    image: bitnami/kubectl:latest
+    container_name: prom-pf
+    command: ["kubectl", "port-forward", "svc/prometheus-kube-prometheus-prometheus", "9090", "-n", "monitoring"]
+    network_mode: "host"
+    restart: unless-stopped
+
+  # страховка, если сломается автопизация в alertmanager
+  alertmanager-pf:
+    image: bitnami/kubectl:latest
+    container_name: alert-pf
+    command: ["kubectl", "port-forward", "svc/prometheus-kube-prometheus-alertmanager", "9093", "-n", "monitoring"]
+    network_mode: "host"
+    restart: unless-stopped
+
   app:
     build: .
     container_name: chatops-app
@@ -34,6 +50,8 @@ services:
 
     depends_on:
       - db
+      - prometheus-pf
+      - alertmanager-pf
 
 volumes:
   postgres_data: {}
