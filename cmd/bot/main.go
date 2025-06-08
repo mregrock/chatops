@@ -5,10 +5,8 @@ import (
 	"chatops/internal/db/migrations"
 	"chatops/internal/monitoring"
 	"chatops/internal/kube"
-	"chatops/internal/kube"
 	"log"
 	"os"
-	"path/filepath"
 	"path/filepath"
 	"strings"
 	"time"
@@ -76,7 +74,6 @@ func main() {
 	
 	monitorClient, err := monitoring.NewClient("http://localhost:9090", "")
 	
-	monitorClient, err := monitoring.NewClient("http://localhost:9090", "")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -93,17 +90,6 @@ func main() {
 	}
 	handlers.SetKubeClient(kubeClient)
 	handlers.SetMonitorClient(monitorClient)
-
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		log.Fatal("Не удалось определить домашнюю директорию:", err)
-	}
-	kubeconfigPath := filepath.Join(homeDir, ".kube", "config")
-	kubeClient, err := kube.InitClientFromKubeconfig(kubeconfigPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	handlers.SetKubeClient(kubeClient)
 
 	pref := telebot.Settings{
 		Token:  token,
