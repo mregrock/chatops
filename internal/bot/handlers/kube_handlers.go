@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -20,6 +21,8 @@ func SetKubeClient(client *kube.K8sClient) {
 
 // kube
 func ScaleHandler(c telebot.Context) error {
+	c.Send("Начат Scale ")
+	fmt.Print("Начат Scale\n")
 	parts := strings.SplitN(c.Text(), " ", 2)
 	if len(parts) < 2 {
 		return c.Send("Неправильное кол-во параметров ")
@@ -41,6 +44,7 @@ func ScaleHandler(c telebot.Context) error {
 	go func() {
         for msg := range logCh {
             c.Send(msg) // Отправляем каждое сообщение сразу
+			fmt.Print(msg)
         }
     }()
 	err = GlobalKubeClient.ScaleDeploymentWithLogs(ctx, namespace, name, int32(num), logCh)
@@ -68,6 +72,7 @@ func RestartHandler(c telebot.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	logCh := make(chan string)
+
 	go func() {
         for msg := range logCh {
             c.Send(msg) // Отправляем каждое сообщение сразу
