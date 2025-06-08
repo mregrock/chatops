@@ -118,10 +118,9 @@ func StatusHandler(c telebot.Context) error {
 		return c.Send(fmt.Sprintf("❌ *Произошла ошибка:*\n`%v`", escapeMarkdown(err.Error())), telebot.ModeMarkdownV2)
 	}
 
-
 	fmt.Printf("Successfully got dashboard: %+v\n", response)
 
-	return c.Send(formatDashboardForTelegram(response), telebot.ModeMarkdownV2)
+	return c.Send(FormatDashboardForTelegram(response), telebot.ModeMarkdownV2)
 
 }
 
