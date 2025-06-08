@@ -67,14 +67,9 @@ func main() {
 		log.Println("Не удалось загрузить .env файл, используются переменные окружения системы")
 	}
 
-
 	migrations.AutoMigrate()
 
 	token := os.Getenv("TELEGRAM_API")
-	if token == "" {
-		log.Fatal("TELEGRAM_API не найден в .env")
-	}
-
 	prometheus_url := os.Getenv("PROMETHEUS_URL")
 	alertmanager_url := os.Getenv("ALERTMANAGER_URL")
 
