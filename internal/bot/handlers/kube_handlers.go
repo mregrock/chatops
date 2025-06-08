@@ -52,7 +52,7 @@ func ScaleHandler(c telebot.Context) error {
         for msg := range logCh {
             if msg != "" {
                 // Используем правильный формат для Send
-                c.Send(msg, &telebot.SendOptions{})
+                c.Send(msg)
 
                 fmt.Println(msg + "\n")
             }
@@ -63,7 +63,7 @@ func ScaleHandler(c telebot.Context) error {
     if err != nil {
 		str := fmt.Sprintf("Ошибка при выполнении команды: %v", err)
 		fmt.Println(str)
-       return c.Send(str)
+       return err
     }
     
     return nil
