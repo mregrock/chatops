@@ -21,7 +21,7 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
 
 # Установка Yandex Cloud CLI
 RUN curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | \
-    bash -s -- -i /usr/local/yandex-cloud -n
+    sh -s -- -i /usr/local/yandex-cloud -n
 
 ENV PATH="/root/.yandex-cloud/bin:${PATH}"
 
