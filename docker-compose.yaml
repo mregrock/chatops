@@ -29,6 +29,8 @@ services:
       GPT_KEY: ${GPT_KEY}
       GPT_CATALOG: ${GPT_CATALOG}
 
+      KUBECONFIG: /root/.kube/config
+
     volumes:
       - ./kubeconfig:/root/.kube/config:ro
     depends_on:
