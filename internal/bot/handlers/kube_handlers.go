@@ -11,7 +11,11 @@ import (
 )
 
 var GlobalKubeClient *kube.K8sClient
+var GlobalKubeClient *kube.K8sClient
 
+// SetKubeClient sets the global Kubernetes client for handlers
+func SetKubeClient(client *kube.K8sClient) {
+	GlobalKubeClient = client
 // SetKubeClient sets the global Kubernetes client for handlers
 func SetKubeClient(client *kube.K8sClient) {
 	GlobalKubeClient = client

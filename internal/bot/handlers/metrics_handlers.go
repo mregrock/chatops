@@ -12,13 +12,18 @@ import (
 )
 
 var GlobalMonitorClient *monitoring.Client 
+var GlobalMonitorClient *monitoring.Client 
 
+// SetMonitorClient sets the global monitor client for handlers
+func SetMonitorClient(client *monitoring.Client) {
+	GlobalMonitorClient = client
 // SetMonitorClient sets the global monitor client for handlers
 func SetMonitorClient(client *monitoring.Client) {
 	GlobalMonitorClient = client
 }
 
 // metric
+func  MetricHandler(c telebot.Context) error {
 func  MetricHandler(c telebot.Context) error {
 	parts := strings.SplitN(c.Text(), " ", 3)
 	if len(parts) < 3 {
@@ -29,6 +34,9 @@ func  MetricHandler(c telebot.Context) error {
 	req := metric + "{job=\"" + service + "\"}"
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	response, err := GlobalMonitorClient.Query(ctx, req)
+
 
 	response, err := GlobalMonitorClient.Query(ctx, req)
 
@@ -52,12 +60,14 @@ func  MetricHandler(c telebot.Context) error {
 	}
 
 	allValues = strings.TrimSpace(allValues) 
+	allValues = strings.TrimSpace(allValues) 
 
 	return c.Send(result + allValues)
 
 }
 
 // metric
+func ListMetricsHandler(c telebot.Context) error {
 func ListMetricsHandler(c telebot.Context) error {
 	parts := strings.SplitN(c.Text(), " ", 3)
 	if len(parts) < 3 {
@@ -69,6 +79,7 @@ func ListMetricsHandler(c telebot.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	response, err := GlobalMonitorClient.ListMetrics(ctx, req)
 	response, err := GlobalMonitorClient.ListMetrics(ctx, req)
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
@@ -87,6 +98,7 @@ func ListMetricsHandler(c telebot.Context) error {
 }
 
 // StatusHandler - заглушка
+func StatusHandler(c telebot.Context) error {
 func StatusHandler(c telebot.Context) error {
 	return c.Send("Not implemented")
 }

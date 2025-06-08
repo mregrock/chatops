@@ -107,6 +107,8 @@ func (c *K8sClient) ScaleDeploymentWithLogs(ctx context.Context, namespace, name
 		return fmt.Errorf("client not initialized")
 	}
 
+	defer close(logCh)
+
 	log := func(msg string) {
 		if logCh != nil {
 			logCh <- msg
@@ -163,6 +165,8 @@ func (c *K8sClient) ScaleDeploymentWithLogs(ctx context.Context, namespace, name
 }*/
 
 func (c *K8sClient) RollbackDeploymentWithLogs(ctx context.Context, namespace, name string, revision int64, logCh chan<- string) error {
+	defer close(logCh)
+
 	log := func(msg string) {
 		if logCh != nil {
 			logCh <- msg
@@ -306,6 +310,8 @@ func (c *K8sClient) RestartDeploymentWithLogs(ctx context.Context, namespace, na
 	if c.clientset == nil {
 		return fmt.Errorf("client not initialized")
 	}
+
+	defer close(logCh)
 
 	log := func(msg string) {
 		if logCh != nil {
