@@ -27,7 +27,6 @@ func ScaleHandler(c telebot.Context) error {
 	data := strings.SplitN(parts[1], "/", 2)
 	if len(data) < 2 {
 		return c.Send("Ошибка в парсинге namespace/name ")
-		return c.Send("Ошибка в парсинге namespace/name ")
 	}
 	namespace := data[0]
 	name := data[1]
