@@ -103,12 +103,12 @@ func (c *K8sClient) GetPodStatus(ctx context.Context, namespace, podName string)
 }*/
 
 func (c *K8sClient) ScaleDeploymentWithLogs(ctx context.Context, namespace, name string, replicas int32, logCh chan<- string) error {
+	fmt.Print("ScaleDeploymentWithLogs\n")
+	defer close(logCh)
 	if c.clientset == nil {
 		return fmt.Errorf("client not initialized")
 	}
-
-	defer close(logCh)
-
+	fmt.Print("ScaleDeploymentWithLogs 2\n")
 	log := func(msg string) {
 		if logCh != nil {
 			logCh <- msg
@@ -307,11 +307,10 @@ func (c *K8sClient) RollbackDeploymentWithLogs(ctx context.Context, namespace, n
 }
 
 func (c *K8sClient) RestartDeploymentWithLogs(ctx context.Context, namespace, name string, logCh chan<- string) error {
+	defer close(logCh)
 	if c.clientset == nil {
 		return fmt.Errorf("client not initialized")
 	}
-
-	defer close(logCh)
 
 	log := func(msg string) {
 		if logCh != nil {
