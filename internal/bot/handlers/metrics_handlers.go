@@ -53,7 +53,6 @@ func MetricHandler(c telebot.Context) error {
 	}
 
 	allValues = strings.TrimSpace(allValues) 
-	allValues = strings.TrimSpace(allValues) 
 
 	return c.Send(result + allValues)
 
