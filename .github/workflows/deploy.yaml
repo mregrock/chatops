@@ -34,10 +34,10 @@ jobs:
             echo "GPT_CATALOG=${{ secrets.GPT_CATALOG }}" >> .env
             echo "PROMETHEUS_URL=${{ secrets.PROMETHEUS_URL }}" >> .env
             echo "ALERTMANAGER_URL=${{ secrets.ALERTMANAGER_URL }}" >> .env
-            cat << EOF > .env
             
             echo "Init kuber config..."
             echo "${{ secrets.KUBECONFIG_BASE64 }}" | base64 -d > ./kubeconfig
+            
             KUBECONFIG=/root/.kube/config
           
             docker compose up -d --build
