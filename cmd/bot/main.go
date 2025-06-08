@@ -3,8 +3,8 @@ package main
 import (
 	"chatops/internal/bot/handlers"
 	"chatops/internal/db/migrations"
-	"chatops/internal/monitoring"
 	"chatops/internal/kube"
+	"chatops/internal/monitoring"
 	"log"
 	"os"
 	"path/filepath"
@@ -14,8 +14,6 @@ import (
 	"github.com/joho/godotenv"
 	telebot "gopkg.in/telebot.v3"
 )
-
-
 
 type handlerFunc func(telebot.Context) error
 
@@ -60,7 +58,7 @@ func withConfirmation(handler handlerFunc) handlerFunc {
 }
 
 func main() {
-    err := godotenv.Load()
+	err := godotenv.Load()
 	if err != nil {
 		log.Println("Не удалось загрузить .env файл, используются переменные окружения системы")
 	}
@@ -124,7 +122,7 @@ func main() {
 		"/rollback":    handlers.RollbackHandler,
 		"/history":     handlers.HistoryHandler,
 		"/operations":  handlers.OperationsHandler,
-		"/list_pods" : handlers.ListPodsHandler,
+		"/list_pods":   handlers.ListPodsHandler,
 		"/revisions":   handlers.RevisionsHandler,
 	}
 	var userState = make(map[int64]string)
