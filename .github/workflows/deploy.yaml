@@ -23,16 +23,19 @@ jobs:
             cd ~/chatops
             git pull origin main
 
+            echo "Init db variables..."
             echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" > .env
-            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" > .env
-            echo "POSTGRES_NAME=${{ secrets.POSTGRES_NAME }}" > .env
+            echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
+            echo "POSTGRES_NAME=${{ secrets.POSTGRES_NAME }}" >> .env
 
-            echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" > .env
-            echo "GPT_KEY=${{ secrets.GPT_KEY }}" > .env
-            echo "GPT_CATALOG=${{ secrets.GPT_CATALOG }}" > .env
-            echo "PROMETHEUS_URL=${{ secrets.PROMETHEUS_URL }}" > .env
-            echo "ALERTMANAGER_URL=${{ secrets.ALERTMANAGER_URL }}" > .env
+            echo "Init app variables..."
+            echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" >> .env
+            echo "GPT_KEY=${{ secrets.GPT_KEY }}" >> .env
+            echo "GPT_CATALOG=${{ secrets.GPT_CATALOG }}" >> .env
+            echo "PROMETHEUS_URL=${{ secrets.PROMETHEUS_URL }}" >> .env
+            echo "ALERTMANAGER_URL=${{ secrets.ALERTMANAGER_URL }}" >> .env
             
+            echo "Init kuber config..."
             echo "${{ secrets.KUBECONFIG_BASE64 }}" | base64 -d > ./kubeconfig
           
             docker compose up -d --build
