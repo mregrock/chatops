@@ -67,7 +67,7 @@ func main() {
 
 	migrations.AutoMigrate()
 
-	token := os.Getenv("TELEGRAM_API")
+	token := os.Getenv("TELEGRAM_BOT_TOKEN")
 
 	prometheus_url := os.Getenv("PROMETHEUS_URL")
 	alertmanager_url := os.Getenv("ALERTMANAGER_URL")
