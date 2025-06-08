@@ -29,11 +29,11 @@ services:
       GPT_KEY: ${GPT_KEY}
       GPT_CATALOG: ${GPT_CATALOG}
 
-      KUBECONFIG: /root/.kube/config
+      # Переменные для доступа к кластеру Kubernetes
+      # Укажите здесь имя и зону вашего кластера
+      K8S_CLUSTER_NAME: "your-cluster-name"
+      K8S_CLUSTER_ZONE: "your-cluster-zone"
 
-    volumes:
-      - ./kube:/root/.kube:ro
-      - /home/quasarity/yandex-cloud/:/home/quasarity/yandex-cloud/
     depends_on:
       - db
 
