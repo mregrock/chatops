@@ -35,6 +35,8 @@ func MetricHandler(c telebot.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+fmt.Println("Getting metric...")
+
 	response, err := GlobalMonitorClient.Query(ctx, req)
 
 	if err != nil {
@@ -44,7 +46,11 @@ func MetricHandler(c telebot.Context) error {
 		return c.Send(fmt.Sprintf("Произошла ошибка: %v", err))
 	}
 
+
 	result := fmt.Sprintf("Status: %s\n", response.Status)
+
+    fmt.Println("Resp metric:")
+    fmt.Println(response)
 
 	var allValues string
 
@@ -134,25 +140,26 @@ func FormatDashboardForTelegram(dashboard *monitoring.ServiceStatusDashboard) st
 	sb.WriteString(fmt.Sprintf("*Статус сервиса: `%s`*\n\n", escapeMarkdown(dashboard.ServiceName)))
 
 	if len(dashboard.Alerts) > 0 {
-		sb.WriteString("🔥 *Активные алерты:*\n")
+		sb.WriteString("🔥 *Активные алерты:*\\n ")
 		for _, alert := range dashboard.Alerts {
 			alertName := alert.Labels["alertname"]
 			summary := alert.Annotations["summary"]
 			if summary == "" {
 				summary = "Нет описания."
 			}
-			// Use block quotes for alerts for better visibility
+			// Используем цитату для лучшей видимости
 			sb.WriteString(fmt.Sprintf("> *%s:* %s\n", escapeMarkdown(alertName), escapeMarkdown(summary)))
 		}
 		sb.WriteString("\n")
 	} else {
-		sb.WriteString("✅ *Нет активных алертов*\n\n")
+		sb.WriteString("✅ *Нет активных алертов*\\n\\n ")
 	}
 
 	if len(dashboard.Pods) > 0 {
-		sb.WriteString("💻 *Поды:*\n")
+		sb.WriteString("💻 *Поды:*\\n ")
 		for _, pod := range dashboard.Pods {
-			sb.WriteString("================================\n")
+
+			sb.WriteString("```--------------------------------```\n")
 
 			var statusIcon, statusText string
 			switch {
@@ -178,6 +185,7 @@ func FormatDashboardForTelegram(dashboard *monitoring.ServiceStatusDashboard) st
 
 			sb.WriteString(fmt.Sprintf("*Под:* `%s`\n", escapeMarkdown(pod.PodName)))
 			sb.WriteString(fmt.Sprintf("*Статус:* %s %s\n", statusIcon, escapeMarkdown(statusText)))
+
 			sb.WriteString(fmt.Sprintf("*CPU:* `%.2f / %.2f` cores\n", pod.CPUUsageCores, pod.CPULimitCores))
 			sb.WriteString(fmt.Sprintf("*Память:* `%.0f / %.0f` MiB\n", memUsageMiB, memLimitMiB))
 			sb.WriteString(fmt.Sprintf("*Перезапуски:* `%d`\n", pod.Restarts))
