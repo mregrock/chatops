@@ -23,8 +23,8 @@ func SetKubeClient(client *kube.K8sClient) {
 func ScaleHandler(c telebot.Context) error {
 	c.Send("Начат Scale ")
 	fmt.Print("Начат Scale\n")
-	parts := strings.SplitN(c.Text(), " ", 2)
-	if len(parts) < 2 {
+	parts := strings.SplitN(c.Text(), " ", 3)
+	if len(parts) < 3 {
 		return c.Send("Неправильное кол-во параметров ")
 	}
 	data := strings.SplitN(parts[1], "/", 2)
