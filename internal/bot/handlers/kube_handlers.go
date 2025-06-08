@@ -94,7 +94,9 @@ func RestartHandler(c telebot.Context) error {
     }()
 	err := GlobalKubeClient.RestartDeploymentWithLogs(ctx, namespace, name, logCh)
 	if err != nil {
-        return c.Send("Ошибка при выполнении команды")
+        str := fmt.Sprintf("Ошибка при выполнении команды: %v", err)
+		fmt.Println(str)
+       return err
     }
 
 	return nil
@@ -126,7 +128,9 @@ func RollbackHandler(c telebot.Context) error {
     }()
 	err = GlobalKubeClient.RollbackDeploymentWithLogs(ctx, namespace, name, num, logCh)
 	if err != nil {
-		return c.Send("Ошибка при выполнении команды")
+		str := fmt.Sprintf("Ошибка при выполнении команды: %v", err)
+		fmt.Println(str)
+       return err
 	}
 
 	return nil
