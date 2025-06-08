@@ -33,7 +33,7 @@ services:
 
     volumes:
       - ./kube:/root/.kube:ro
-      - /home/quasarity/yandex-cloud/bin/yc:/home/quasarity/yandex-cloud/bin/yc
+      - /home/quasarity/yandex-cloud/:/home/quasarity/yandex-cloud/
     depends_on:
       - db
 
