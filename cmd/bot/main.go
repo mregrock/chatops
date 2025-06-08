@@ -4,9 +4,10 @@ import (
 	"chatops/internal/bot/handlers"
 	"chatops/internal/db/migrations"
 	"chatops/internal/monitoring"
-
+	"chatops/internal/kube"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -14,10 +15,7 @@ import (
 	telebot "gopkg.in/telebot.v3"
 )
 
-func revisionsHandler(c telebot.Context) error {
-	// TODO: Реализовать логику для команды revisions
-	return c.Send("Выполняется команда revisions...")
-}
+
 
 type handlerFunc func(telebot.Context) error
 
@@ -75,15 +73,29 @@ func main() {
 		log.Fatal("TELEGRAM_API не найден в .env")
 	}
 
+	
+
 	prometheus_url := os.Getenv("PROMETHEUS_URL")
 	alertmanager_url := os.Getenv("ALERTMANAGER_URL")
 
 	monClient, err := monitoring.NewClient(prometheus_url, alertmanager_url)
+
 	if err != nil {
 		log.Fatal(err)
 	}
+	handlers.SetMonitorClient(monitorClient)
 
-	h := handlers.New(monClient)
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatal("Не удалось определить домашнюю директорию:", err)
+	}
+	kubeconfigPath := filepath.Join(homeDir, ".kube", "config")
+	kubeClient, err := kube.InitClientFromKubeconfig(kubeconfigPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	handlers.SetKubeClient(kubeClient)
+	handlers.SetMonitorClient(monitorClient)
 
 	pref := telebot.Settings{
 		Token:  token,
@@ -110,15 +122,15 @@ func main() {
 	/help - выводит все доступные команды`
 
 	var commandHandlers = map[string]handlerFunc{
-		"/status":      h.StatusHandler,
-		"/metric":      h.MetricHandler,
-		"/list_metric": h.ListMetricsHandler,
-		"/scale":       h.ScaleHandler,
-		"/restart":     h.RestartHandler,
-		"/rollback":    h.RollbackHandler,
+		"/status":      handlers.StatusHandler,
+		"/metric":      handlers.MetricHandler,
+		"/list_metric": handlers.ListMetricsHandler,
+		"/scale":       handlers.ScaleHandler,
+		"/restart":     handlers.RestartHandler,
+		"/rollback":    handlers.RollbackHandler,
 		"/history":     handlers.HistoryHandler,
 		"/operations":  handlers.OperationsHandler,
-		"/revisions":   revisionsHandler,
+		"/revisions":   handlers.RevisionsHandler,
 	}
 	var userState = make(map[int64]string)
 	var userLogin = ""
@@ -138,10 +150,10 @@ func main() {
 		text := c.Text()
 		userID := c.Sender().ID
 		if strings.HasPrefix(text, "/") {
+			if _, ok := userState[userID]; ok {
+				return nil
+			}
 			if userStatusAuthorization {
-				if _, ok := userState[userID]; ok {
-					return nil
-				}
 				parts := strings.SplitN(text, " ", 2)
 				cmd := parts[0]
 				if handler, ok := commandHandlers[cmd]; ok {
@@ -158,8 +170,6 @@ func main() {
 				userLogin = c.Text()
 				return c.Send("Теперь введите пароль:")
 			case "password":
-
-				// TODO: сделать проверку логина и пароля
 				delete(userState, userID)
 				userPassword = c.Text()
 				userStatusAuthorization = handlers.ProofLoginPaswordHandler(userLogin, userPassword)
