@@ -32,7 +32,7 @@ func (c *Client) GetStatusDashboard(ctx context.Context, namespace, jobName stri
 		Pods:        []PodStatus{},
 	}
 
-	podNames, err := c.getPodNamesForJob(ctx, jobName)
+	podNames, err := c.getPodNamesForJob(ctx, namespace, jobName)
 	if err != nil {
 		return nil, fmt.Errorf("could not get pod names for job %s: %w", jobName, err)
 	}
@@ -186,8 +186,8 @@ func (c *Client) GetStatusDashboard(ctx context.Context, namespace, jobName stri
 	return dashboard, nil
 }
 
-func (c *Client) getPodNamesForJob(ctx context.Context, jobName string) ([]string, error) {
-	query := fmt.Sprintf(`up{job="%s"}`, jobName)
+func (c *Client) getPodNamesForJob(ctx context.Context, namespace, jobName string) ([]string, error) {
+	query := fmt.Sprintf(`up{job=~".*%s.*", namespace="%s"}`, jobName, namespace)
 	resp, err := c.Query(ctx, query)
 	if err != nil {
 		return nil, err

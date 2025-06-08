@@ -7,20 +7,44 @@ import (
 	"chatops/internal/monitoring"
 	"context"
 	"fmt"
+	"log"
+	"net/url"
+	"os"
 	"testing"
+
+	"github.com/joho/godotenv"
+	"github.com/stretchr/testify/require"
 )
 
-func TestMonitoringClient_Integration(t *testing.T) {
-	promURL := "http://localhost:9090"
-	alertmanagerURL := "http://localhost:9093"
-
-	client, err := monitoring.NewClient(promURL, alertmanagerURL)
+func TestMain(m *testing.M) {
+	err := godotenv.Load("../../.env")
 	if err != nil {
-		t.Fatalf("Failed to create monitoring client: %v", err)
+		log.Println("Error loading .env file, assuming env vars are set externally")
+	}
+	os.Exit(m.Run())
+}
+
+func TestMonitoringClient_Integration(t *testing.T) {
+	promURLRaw := os.Getenv("PROMETHEUS_URL")
+	alertmanagerURL := os.Getenv("ALERTMANAGER_URL")
+	user := os.Getenv("PROMETHEUS_USER")
+	pass := os.Getenv("PROMETHEUS_PASS")
+	jobName := os.Getenv("TEST_JOB_NAME")
+	namespace := os.Getenv("TEST_NAMESPACE")
+
+	if promURLRaw == "" || alertmanagerURL == "" || user == "" || pass == "" || jobName == "" {
+		t.Skip("Skipping integration test: required environment variables are not set")
 	}
 
+	u, err := url.Parse(promURLRaw)
+	require.NoError(t, err)
+	u.User = url.UserPassword(user, pass)
+	promURL := u.String()
+
+	client, err := monitoring.NewClient(promURL, alertmanagerURL)
+	require.NoError(t, err, "Failed to create monitoring client")
+
 	ctx := context.Background()
-	jobName := "test-app-go-svc"
 
 	t.Run("ListMetrics", func(t *testing.T) {
 		metricNames, err := client.ListMetrics(ctx, jobName)
@@ -37,7 +61,7 @@ func TestMonitoringClient_Integration(t *testing.T) {
 
 	t.Run("QueryMetric", func(t *testing.T) {
 		metricToQuery := "go_goroutines"
-		query := fmt.Sprintf(`%s{job=%q}`, metricToQuery, jobName)
+		query := fmt.Sprintf(`%s{job=~".*%s.*", namespace="%s"}`, metricToQuery, jobName, namespace)
 		queryResp, err := client.Query(ctx, query)
 		if err != nil {
 			t.Fatalf("Failed to query metric: %v", err)
