@@ -20,44 +20,51 @@ func SetKubeClient(client *kube.K8sClient) {
 }
 
 // kube
-func ScaleHandler(c telebot.Context) error {
-	c.Send("Начат Scale ")
-	fmt.Print("Начат Scale\n")
-	parts := strings.SplitN(c.Text(), " ", 3)
-	if len(parts) < 3 {
-		return c.Send("Неправильное кол-во параметров ")
-	}
-	data := strings.SplitN(parts[1], "/", 2)
-	if len(data) < 2 {
-		return c.Send("Ошибка в парсинге namespace/name ")
-	}
-	namespace := data[0]
-	name := data[1]
-	for _, msg := range parts {
-		str := fmt.Sprintf("msg: %s", msg)
-		c.Send(str) // Отправляем каждое сообщение сразу
-		fmt.Print(str)
-	}
 
-	num, err := strconv.Atoi(parts[2])
-	if err != nil {
-		return c.Send("Ошибки при чтении числа реплик ")
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	logCh := make(chan string)
-	go func() {
+func ScaleHandler(c telebot.Context) error {
+    c.Send("Начат Scale")
+    fmt.Print("Начат Scale\n")
+    
+    parts := strings.SplitN(c.Text(), " ", 3)
+    if len(parts) < 3 {
+        return c.Send("Неправильное кол-во параметров")
+    }
+    
+    data := strings.SplitN(parts[1], "/", 2)
+    if len(data) < 2 {
+        return c.Send("Ошибка в парсинге namespace/name")
+    }
+    
+    namespace := data[0]
+    name := data[1]
+    
+    num, err := strconv.Atoi(parts[2])
+    if err != nil {
+        return c.Send("Ошибки при чтении числа реплик")
+    }
+    
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
+    
+    logCh := make(chan string)
+    
+    // Запускаем горутину для чтения логов
+    go func() {
         for msg := range logCh {
-            c.Send(msg) // Отправляем каждое сообщение сразу
-			fmt.Print(msg)
+            if msg != "" {
+                // Используем правильный формат для Send
+                c.Send(msg, &telebot.SendOptions{})
+                fmt.Print(msg + "\n")
+            }
         }
     }()
-	err = GlobalKubeClient.ScaleDeploymentWithLogs(ctx, namespace, name, int32(num), logCh)
-	if err != nil {
-		return c.Send("Ошибка при выполнении команды: %v", err)
-	}
-
-	return nil
+    
+    err = GlobalKubeClient.ScaleDeploymentWithLogs(ctx, namespace, name, int32(num), logCh)
+    if err != nil {
+        return c.Send("Ошибка при выполнении команды: %v", err)
+    }
+    
+    return nil
 }
 
 // kube
