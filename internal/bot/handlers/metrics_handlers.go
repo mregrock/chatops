@@ -90,7 +90,9 @@ func ListMetricsHandler(c telebot.Context) error {
  * получить статус подов
  */
 func StatusHandler(c telebot.Context) error {
+
 	parts := strings.Split(c.Text(), " ")
+
 	if len(parts) < 2 {
 		return c.Send("Usage: /status <job_name> [namespace]")
 	}
@@ -112,13 +114,15 @@ func StatusHandler(c telebot.Context) error {
 		return c.Send(fmt.Sprintf("❌ *Произошла ошибка:*\n`%v`", escapeMarkdown(err.Error())), telebot.ModeMarkdownV2)
 	}
 
+
 	fmt.Printf("Successfully got dashboard: %+v\n", response)
 
 	return c.Send(formatDashboardForTelegram(response), telebot.ModeMarkdownV2)
+
 }
 
-// formatDashboardForTelegram форматирует данные дашборда в строку для отправки в Telegram
-func formatDashboardForTelegram(dashboard *monitoring.ServiceStatusDashboard) string {
+// FormatDashboardForTelegram форматирует данные дашборда в строку для отправки в Telegram
+func FormatDashboardForTelegram(dashboard *monitoring.ServiceStatusDashboard) string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("*Статус сервиса: `%s`*\n\n", escapeMarkdown(dashboard.ServiceName)))
