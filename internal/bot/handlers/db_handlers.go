@@ -23,8 +23,6 @@ func HistoryHandler(c telebot.Context) error {
 		ans += fmt.Sprintf("ID: %d, Status: %s\n", i.ID, i.Status)
 	}
 	return c.Send(ans)
-	// TODO: Реализовать логику для команды history
-	// return c.Send("Выполняется команда history...")
 }
 
 // db
@@ -42,8 +40,6 @@ func OperationsHandler(c telebot.Context) error {
 			o.ID, o.Text, o.Time)
 	}
 	return c.Send(ans)
-	// TODO: Реализовать логику для команды operations
-	// return c.Send("Выполняется команда operations...")
 }
 
 func ProofLoginPaswordHandler(login, password string) bool {

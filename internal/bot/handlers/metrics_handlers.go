@@ -106,20 +106,15 @@ func  RollbackHandler(c telebot.Context) error {
 	return c.Send("Not implemented")
 }
 
-// ну у нас это наверно хранить в бд по идее ???
-// HistoryHandler - заглушка
-// func (h *Handler) HistoryHandler(c telebot.Context) error {
-// 	return c.Send("Not implemented")
-// }
+
 
 // OperationsHandler - заглушка
 // func (h *Handler) OperationsHandler(c telebot.Context) error {
 // 	return c.Send("Not implemented")
 // }
 
-// metric
-func statusHandler(c telebot.Context) error {
-	context.Background()
 
-	return c.Send("Выполняется команда status...")
+func RevisionsHandler(c telebot.Context) error {
+	// TODO: Реализовать логику для команды revisions
+	return c.Send("Выполняется команда revisions...")
 }

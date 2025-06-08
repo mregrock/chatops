@@ -15,10 +15,7 @@ import (
 	telebot "gopkg.in/telebot.v3"
 )
 
-func revisionsHandler(c telebot.Context) error {
-	// TODO: Реализовать логику для команды revisions
-	return c.Send("Выполняется команда revisions...")
-}
+
 
 type handlerFunc func(telebot.Context) error
 
@@ -125,7 +122,7 @@ func main() {
 		"/rollback":    handlers.RollbackHandler,
 		"/history":     handlers.HistoryHandler,
 		"/operations":  handlers.OperationsHandler,
-		"/revisions":   revisionsHandler,
+		"/revisions":   handlers.RevisionsHandler,
 	}
 	var userState = make(map[int64]string)
 	var userLogin = ""
@@ -145,10 +142,10 @@ func main() {
 		text := c.Text()
 		userID := c.Sender().ID
 		if strings.HasPrefix(text, "/") {
+			if _, ok := userState[userID]; ok {
+				return nil
+			}
 			if userStatusAuthorization {
-				if _, ok := userState[userID]; ok {
-					return nil
-				}
 				parts := strings.SplitN(text, " ", 2)
 				cmd := parts[0]
 				if handler, ok := commandHandlers[cmd]; ok {
@@ -165,8 +162,6 @@ func main() {
 				userLogin = c.Text()
 				return c.Send("Теперь введите пароль:")
 			case "password":
-
-				// TODO: сделать проверку логина и пароля
 				delete(userState, userID)
 				userPassword = c.Text()
 				userStatusAuthorization = handlers.ProofLoginPaswordHandler(userLogin, userPassword)
