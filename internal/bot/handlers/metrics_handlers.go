@@ -20,13 +20,18 @@ func SetMonitorClient(client *monitoring.Client) {
 
 // metric
 func MetricHandler(c telebot.Context) error {
-	parts := strings.SplitN(c.Text(), " ", 3)
+	parts := strings.Split(c.Text(), " ")
 	if len(parts) < 3 {
-		return c.Send("Неправильное кол-во параметров ")
+		return c.Send("Использование: /metric <сервис> <метрика> [namespace]")
 	}
 	service := parts[1]
 	metric := parts[2]
-	req := metric + "{job=\"" + service + "\"}"
+	namespace := "default"
+	if len(parts) > 3 {
+		namespace = parts[3]
+	}
+
+	req := fmt.Sprintf(`%s{job=~"^%s.*", namespace="%s"}`, metric, service, namespace)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -53,7 +58,6 @@ func MetricHandler(c telebot.Context) error {
 	allValues = strings.TrimSpace(allValues)
 
 	return c.Send(result + allValues)
-
 }
 
 // metric
@@ -146,7 +150,7 @@ func FormatDashboardForTelegram(dashboard *monitoring.ServiceStatusDashboard) st
 	if len(dashboard.Pods) > 0 {
 		sb.WriteString("💻 *Поды:*\n")
 		for _, pod := range dashboard.Pods {
-			sb.WriteString("--------------------------------\n")
+			sb.WriteString("================================\n")
 
 			var statusIcon, statusText string
 			switch {

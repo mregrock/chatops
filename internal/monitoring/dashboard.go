@@ -187,7 +187,7 @@ func (c *Client) GetStatusDashboard(ctx context.Context, namespace, jobName stri
 }
 
 func (c *Client) getPodNamesForJob(ctx context.Context, namespace, jobName string) ([]string, error) {
-	query := fmt.Sprintf(`up{job=~".*%s.*", namespace="%s"}`, jobName, namespace)
+	query := fmt.Sprintf(`up{job=~"^%s.*", namespace="%s"}`, jobName, namespace)
 	resp, err := c.Query(ctx, query)
 	if err != nil {
 		return nil, err

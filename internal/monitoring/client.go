@@ -119,7 +119,7 @@ func (c *Client) ListMetrics(ctx context.Context, jobName string) ([]string, err
 	}
 
 	q := req.URL.Query()
-	q.Add("match[]", fmt.Sprintf(`{job=~".*%s.*"}`, jobName))
+	q.Add("match[]", fmt.Sprintf(`{job=~"^%s.*"}`, jobName))
 	req.URL.RawQuery = q.Encode()
 
 	resp, err := c.httpClient.Do(req)
