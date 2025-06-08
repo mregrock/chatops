@@ -138,6 +138,38 @@ func RollbackHandler(c telebot.Context) error {
 }
 
 func RevisionsHandler(c telebot.Context) error {
-	// TODO: Реализовать логику для команды revisions
-	return c.Send("Выполняется команда revisions...")
+	parts := strings.SplitN(c.Text(), " ", 2)
+	if len(parts) < 2 {
+		return c.Send("Неправильное кол-во параметров ")
+	}
+	data := strings.SplitN(parts[1], "/", 2)
+	if len(data) < 2 {
+		return c.Send("Ошибка в парсинге namespace/name ")
+	}
+	namespace := data[0]
+	name := data[1]
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	logCh := make(chan string)
+
+	go func() {
+        for msg := range logCh {
+            c.Send(msg) // Отправляем каждое сообщение сразу
+        }
+    }()
+	ans, err := GlobalKubeClient.ListAvailableRevisions(ctx, namespace, name)
+	if err != nil {
+        str := fmt.Sprintf("Ошибка при выполнении команды: %v", err)
+		fmt.Println(str)
+       return err
+    }
+	for _, revision := range ans {
+		str := fmt.Sprintf("Revision: %d, RSName: %s, Image: %s", revision.Revision, revision.RSName, revision.Image)
+		fmt.Println(str)
+		c.Send(str)
+	}
+
+	return nil
+
 }
