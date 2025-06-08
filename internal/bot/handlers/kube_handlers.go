@@ -25,7 +25,7 @@ func ScaleHandler(c telebot.Context) error {
 	}
 	data := strings.SplitN(parts[1], "/", 2)
 	if len(data) < 2 {
-		return c.Send("Неправильное кол-во параметров ")
+		return c.Send("Ошибка в парсинге namespace/name ")
 	}
 	namespace := data[0]
 	name := data[1]
@@ -52,12 +52,66 @@ func ScaleHandler(c telebot.Context) error {
 
 // kube
 func RestartHandler(c telebot.Context) error {
-	// TODO: Реализовать логику для команды restart
-	return c.Send("Выполняется команда restart...")
+	
+	parts := strings.SplitN(c.Text(), " ", 2)
+	if len(parts) < 2 {
+		return c.Send("Неправильное кол-во параметров ")
+	}
+	data := strings.SplitN(parts[1], "/", 2)
+	if len(data) < 2 {
+		return c.Send("Ошибка в парсинге namespace/name ")
+	}
+	namespace := data[0]
+	name := data[1]
+	logCh := make(chan string)
+	
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err := GlobalKubeClient.RestartDeploymentWithLogs(ctx, namespace, name, logCh)
+	if err != nil {
+		return c.Send("Ошибка при выполнении команды scale: %v", err)
+	}
+
+	var result string
+	for msg := range logCh {
+		result += msg
+	}
+
+	return c.Send(result)
 }
 
 // kube
 func RollbackHandler(c telebot.Context) error {
-	// TODO: Реализовать логику для команды rollback
-	return c.Send("Выполняется команда rollback...")
+	parts := strings.SplitN(c.Text(), " ", 3)
+	if len(parts) < 3 {
+		return c.Send("Неправильное кол-во параметров ")
+	}
+	data := strings.SplitN(parts[1], "/", 2)
+	if len(data) < 2 {
+		return c.Send("Ошибка в парсинге namespace/name ")
+	}
+	namespace := data[0]
+	name := data[1]
+	logCh := make(chan string)
+	num, err := strconv.ParseInt(parts[2], 10, 64)
+	if err != nil {
+		return c.Send("Ошибки при чтении числа реплик ")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err = GlobalKubeClient.RollbackDeploymentWithLogs(ctx, namespace, name, num, logCh)
+	if err != nil {
+		return c.Send("Ошибка при выполнении команды scale: %v", err)
+	}
+
+	var result string
+	for msg := range logCh {
+		result += msg
+	}
+
+	return c.Send(result)
+	
 }
