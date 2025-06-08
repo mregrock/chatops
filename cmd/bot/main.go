@@ -1,6 +1,7 @@
 package main
 
 import (
+
 	"chatops/internal/app"
 	"chatops/internal/bot/handlers"
 	"chatops/internal/db/migrations"
@@ -27,219 +28,222 @@ var (
 	userState      = make(map[int64]string)
 	userCreds      = make(map[int64]UserCredentials)
 	userAuthStatus = make(map[int64]bool)
+
 )
 
 type handlerFunc func(telebot.Context) error
 
 func withConfirmation(handler handlerFunc) handlerFunc {
-	return func(originalContext telebot.Context) error {
-		yesBtn := telebot.InlineButton{
-			Unique: "confirm_yes",
-			Text:   "Да",
-		}
-		noBtn := telebot.InlineButton{
-			Unique: "confirm_no",
-			Text:   "Нет",
-		}
+  return func(originalContext telebot.Context) error {
+    yesBtn := telebot.InlineButton{
+      Unique: "confirm_yes",
+      Text:   "Да",
+    }
+    noBtn := telebot.InlineButton{
+      Unique: "confirm_no",
+      Text:   "Нет",
+    }
 
-		_, err := originalContext.Bot().Send(originalContext.Chat(), "Вы уверены?", &telebot.ReplyMarkup{
-			InlineKeyboard: [][]telebot.InlineButton{
-				{yesBtn, noBtn},
-			},
-		})
+    _, err := originalContext.Bot().Send(originalContext.Chat(), "Вы уверены?", &telebot.ReplyMarkup{
+      InlineKeyboard: [][]telebot.InlineButton{
+        {yesBtn, noBtn},
+      },
+    })
 
-		if err != nil {
-			return err
-		}
+    if err != nil {
+      return err
+    }
 
-		originalContext.Bot().Handle(&yesBtn, func(cb telebot.Context) error {
-			if cb.Sender().ID != originalContext.Sender().ID {
-				return cb.Respond(&telebot.CallbackResponse{Text: "Это не для вас"})
-			}
-			cb.Respond()
-			return handler(originalContext)
-		})
+    originalContext.Bot().Handle(&yesBtn, func(cb telebot.Context) error {
+      if cb.Sender().ID != originalContext.Sender().ID {
+        return cb.Respond(&telebot.CallbackResponse{Text: "Это не для вас"})
+      }
+      cb.Respond()
+      return handler(originalContext)
+    })
 
-		originalContext.Bot().Handle(&noBtn, func(cb telebot.Context) error {
-			if cb.Sender().ID != originalContext.Sender().ID {
-				return cb.Respond(&telebot.CallbackResponse{Text: "Это не для вас"})
-			}
-			cb.Respond()
-			return cb.Send("Отмена")
-		})
-		return nil
-	}
+    originalContext.Bot().Handle(&noBtn, func(cb telebot.Context) error {
+      if cb.Sender().ID != originalContext.Sender().ID {
+        return cb.Respond(&telebot.CallbackResponse{Text: "Это не для вас"})
+      }
+      cb.Respond()
+      return cb.Send("Отмена")
+    })
+    return nil
+  }
 }
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Println("Не удалось загрузить .env файл, используются переменные окружения системы")
-	}
+  err := godotenv.Load()
+  if err != nil {
+    log.Println("Не удалось загрузить .env файл, используются переменные окружения системы")
+  }
 
-	migrations.AutoMigrate()
+  migrations.AutoMigrate()
 
-	token := os.Getenv("TELEGRAM_BOT_TOKEN")
-	prometheus_url := os.Getenv("PROMETHEUS_URL")
-	alertmanager_url := os.Getenv("ALERTMANAGER_URL")
+  token := os.Getenv("TELEGRAM_BOT_TOKEN")
+  prometheus_url := os.Getenv("PROMETHEUS_URL")
+  alertmanager_url := os.Getenv("ALERTMANAGER_URL")
 
-	monitorClient, err := monitoring.NewClient(prometheus_url, alertmanager_url)
-	if err != nil {
-		log.Fatal(err)
-	}
-	dbAdapter := &app.DBAdapter{}
+  monitorClient, err := monitoring.NewClient(prometheus_url, alertmanager_url)
+  if err != nil {
+    log.Fatal(err)
+  }
+  dbAdapter := &app.DBAdapter{}
 
-	alerter := app.NewAlerter(monitorClient, dbAdapter)
-	poller := app.NewAlertPoller(alerter, 30*time.Second)
-	poller.Start()
-	log.Println("Alert poller started")
+  alerter := app.NewAlerter(monitorClient, dbAdapter)
+  poller := app.NewAlertPoller(alerter, 30*time.Second)
+  poller.Start()
+  log.Println("Alert poller started")
 
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		log.Fatal("Не удалось определить домашнюю директорию:", err)
-	}
-	kubeconfigPath := filepath.Join(homeDir, ".kube", "config")
-	kubeClient, err := kube.InitClientFromKubeconfig(kubeconfigPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-	handlers.SetKubeClient(kubeClient)
-	handlers.SetMonitorClient(monitorClient)
+  homeDir, err := os.UserHomeDir()
+  if err != nil {
+    log.Fatal("Не удалось определить домашнюю директорию:", err)
+  }
+  kubeconfigPath := filepath.Join(homeDir, ".kube", "config")
+  kubeClient, err := kube.InitClientFromKubeconfig(kubeconfigPath)
+  if err != nil {
+    log.Fatal(err)
+  }
+  handlers.SetKubeClient(kubeClient)
+  handlers.SetMonitorClient(monitorClient)
 
-	pref := telebot.Settings{
-		Token:  token,
-		Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
-	}
+  pref := telebot.Settings{
+    Token:  token,
+    Poller: &telebot.LongPoller{Timeout: 10 * time.Second},
+  }
 
-	bot, err := telebot.NewBot(pref)
-	if err != nil {
-		log.Fatal(err)
-	}
+  bot, err := telebot.NewBot(pref)
+  if err != nil {
+    log.Fatal(err)
+  }
 
-	helpMsg := `Доступные функции:
+  helpMsg := `Доступные функции:
 
-	/start - чтобы авторизоваться
-	/status [name\id] - ?
-	/metric [сервис] [метрика]
-	/list_metric [сервис] [метрика]
-	/scale
-	/restart
-	/rollback
-	/history
-	/operations
-	/revisions
-	/help - выводит все доступные команды`
+  /start - чтобы авторизоваться
+  /status [name\id] - ?
+  /metric [сервис] [метрика]
+  /list_metric [сервис] [метрика]
+  /scale
+  /restart
+  /rollback
+  /history
+  /operations
+  /revisions
+  /help - выводит все доступные команды`
 
-	var commandHandlers = map[string]handlerFunc{
-		"/status":      handlers.StatusHandler,
-		"/metric":      handlers.MetricHandler,
-		"/list_metric": handlers.ListMetricsHandler,
-		"/scale":       handlers.ScaleHandler,
-		"/restart":     handlers.RestartHandler,
-		"/rollback":    handlers.RollbackHandler,
-		"/history":     handlers.HistoryHandler,
-		"/operations":  handlers.OperationsHandler,
-		"/revisions":   handlers.RevisionsHandler,
-	}
+  var commandHandlers = map[string]handlerFunc{
+    "/status":      handlers.StatusHandler,
+    "/metric":      handlers.MetricHandler,
+    "/list_metric": handlers.ListMetricsHandler,
+    "/scale":       handlers.ScaleHandler,
+    "/restart":     handlers.RestartHandler,
+    "/rollback":    handlers.RollbackHandler,
+    "/history":     handlers.HistoryHandler,
+    "/operations":  handlers.OperationsHandler,
+    "/revisions":   handlers.RevisionsHandler,
+	"/list_pods":   handlers.ListPodsHandler,
+  }
 
-	bot.Handle("/start", func(c telebot.Context) error {
-		userID := c.Sender().ID
-		userState[userID] = "login"
-		delete(userCreds, userID)
-		delete(userAuthStatus, userID)
-		return c.Send("Введите свой логин:")
-	})
+  bot.Handle("/start", func(c telebot.Context) error {
+    userID := c.Sender().ID
+    userState[userID] = "login"
+    delete(userCreds, userID)
+    delete(userAuthStatus, userID)
+    return c.Send("Введите свой логин:")
+  })
 
-	bot.Handle("/help", func(c telebot.Context) error {
-		return c.Send(helpMsg)
-	})
+  bot.Handle("/help", func(c telebot.Context) error {
+    return c.Send(helpMsg)
+  })
 
-	bot.Handle(telebot.OnText, func(c telebot.Context) error {
-		text := c.Text()
-		userID := c.Sender().ID
-		if strings.HasPrefix(text, "/") {
-			if _, ok := userState[userID]; ok {
-				return nil
-			}
-			if isAuthorized, ok := userAuthStatus[userID]; ok && isAuthorized {
-				parts := strings.SplitN(text, " ", 2)
-				cmd := parts[0]
-				if handler, ok := commandHandlers[cmd]; ok {
-					return withConfirmation(handler)(c)
-				}
-				return c.Send("Введите одну из предложенных команд")
-			} else {
-				return c.Send("Вы не авторизованы. Введите /start для авторизации.")
-			}
-		} else {
-			switch userState[userID] {
-			case "login":
-				userState[userID] = "password"
-				userCreds[userID] = UserCredentials{
-					Login: c.Text(),
-				}
-				return c.Send("Теперь введите пароль:")
-			case "password":
-				delete(userState, userID)
-				creds := userCreds[userID]
-				creds.Password = c.Text()
-				userCreds[userID] = creds
 
-				isAuthorized := handlers.ProofLoginPaswordHandler(
-					creds.Login,
-					creds.Password,
-				)
+  bot.Handle(telebot.OnText, func(c telebot.Context) error {
+    text := c.Text()
+    userID := c.Sender().ID
+    if strings.HasPrefix(text, "/") {
+      if _, ok := userState[userID]; ok {
+        return nil
+      }
+      if isAuthorized, ok := userAuthStatus[userID]; ok && isAuthorized {
+        parts := strings.SplitN(text, " ", 2)
+        cmd := parts[0]
+        if handler, ok := commandHandlers[cmd]; ok {
+          return withConfirmation(handler)(c)
+        }
+        return c.Send("Введите одну из предложенных команд")
+      } else {
+        return c.Send("Вы не авторизованы. Введите /start для авторизации.")
+      }
+    } else {
+      switch userState[userID] {
+      case "login":
+        userState[userID] = "password"
+        userCreds[userID] = UserCredentials{
+          Login: c.Text(),
+        }
+        return c.Send("Теперь введите пароль:")
+      case "password":
+        delete(userState, userID)
+        creds := userCreds[userID]
+        creds.Password = c.Text()
+        userCreds[userID] = creds
 
-				userAuthStatus[userID] = isAuthorized
+        isAuthorized := handlers.ProofLoginPaswordHandler(
+          creds.Login,
+          creds.Password,
+        )
 
-				if isAuthorized {
-					return c.Send("Авторизация успешна!")
-				}
+        userAuthStatus[userID] = isAuthorized
 
-				delete(userCreds, userID)
-				delete(userAuthStatus, userID)
-				return c.Send("Неверный логин или пароль.")
+        if isAuthorized {
+          return c.Send("Авторизация успешна!")
+        }
 
-			default:
-				return c.Send("Непонятные входные данные или что то пошло не так.")
-			}
-		}
-	})
+        delete(userCreds, userID)
+        delete(userAuthStatus, userID)
+        return c.Send("Неверный логин или пароль.")
 
-	commands := []telebot.Command{
-		{Text: "start", Description: "Авторизация в системе"},
-		{Text: "status", Description: "Проверка статуса [name|id]"},
-		{Text: "metric", Description: "Получение метрик сервиса"},
-		{Text: "list_metric", Description: "Полуение списка доступных "},
-		{Text: "scale", Description: "Масштабирование"},
-		{Text: "restart", Description: "Перезапуск"},
-		{Text: "rollback", Description: "Откат изменений"},
-		{Text: "history", Description: "История операций"},
-		{Text: "operations", Description: "Список операций"},
-		{Text: "revisions", Description: "Список ревизий"},
-		{Text: "help", Description: "Список доступных команд"},
-	}
-	if err := bot.SetCommands(commands); err != nil {
-		log.Println("Ошибка при установке команд:", err)
-	}
+      default:
+        return c.Send("Непонятные входные данные или что то пошло не так.")
+      }
+    }
+  })
 
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+  commands := []telebot.Command{
+    {Text: "start", Description: "Авторизация в системе"},
+    {Text: "status", Description: "Проверка статуса [name|id]"},
+    {Text: "metric", Description: "Получение метрик сервиса"},
+    {Text: "list_metric", Description: "Полуение списка доступных "},
+    {Text: "scale", Description: "Масштабирование"},
+    {Text: "restart", Description: "Перезапуск"},
+    {Text: "rollback", Description: "Откат изменений"},
+    {Text: "history", Description: "История операций"},
+    {Text: "operations", Description: "Список операций"},
+    {Text: "revisions", Description: "Список ревизий"},
+    {Text: "help", Description: "Список доступных команд"},
+  }
+  if err := bot.SetCommands(commands); err != nil {
+    log.Println("Ошибка при установке команд:", err)
+  }
 
-	go func() {
-		<-sigChan
-		log.Println("Получен сигнал завершения, останавливаем сервисы...")
+  sigChan := make(chan os.Signal, 1)
+  signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-		log.Println("Останавливаем Alert poller...")
-		poller.Stop()
-		log.Println("Alert poller остановлен")
+  go func() {
+    <-sigChan
+    log.Println("Получен сигнал завершения, останавливаем сервисы...")
 
-		log.Println("Останавливаем бота...")
-		bot.Stop()
-		log.Println("Бот остановлен")
-		os.Exit(0)
-	}()
+    log.Println("Останавливаем Alert poller...")
+    poller.Stop()
+    log.Println("Alert poller остановлен")
 
-	log.Println("Бот запущен и готов к работе")
-	bot.Start()
+    log.Println("Останавливаем бота...")
+    bot.Stop()
+    log.Println("Бот остановлен")
+    os.Exit(0)
+  }()
+
+  log.Println("Бот запущен и готов к работе")
+  bot.Start()
 }
