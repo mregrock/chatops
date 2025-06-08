@@ -22,7 +22,6 @@ func SetKubeClient(client *kube.K8sClient) {
 // kube
 
 func ScaleHandler(c telebot.Context) error {
-    c.Send("Начат Scale")
     fmt.Print("Начат Scale\n")
     
     parts := strings.SplitN(c.Text(), " ", 3)
@@ -43,7 +42,7 @@ func ScaleHandler(c telebot.Context) error {
         return c.Send("Ошибки при чтении числа реплик")
     }
     
-    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
     defer cancel()
     
     logCh := make(chan string)
@@ -53,7 +52,7 @@ func ScaleHandler(c telebot.Context) error {
         for msg := range logCh {
             if msg != "" {
                 // Используем правильный формат для Send
-                //c.Send(msg, &telebot.SendOptions{})
+                c.Send(msg, &telebot.SendOptions{})
 
                 fmt.Println(msg + "\n")
             }
@@ -62,7 +61,9 @@ func ScaleHandler(c telebot.Context) error {
     
     err = GlobalKubeClient.ScaleDeploymentWithLogs(ctx, namespace, name, int32(num), logCh)
     if err != nil {
-        return c.Send("Ошибка при выполнении команды: %v", err)
+		str := fmt.Sprintf("Ошибка при выполнении команды: %v", err)
+		fmt.Println(str)
+       return c.Send(str)
     }
     
     return nil
@@ -93,7 +94,7 @@ func RestartHandler(c telebot.Context) error {
     }()
 	err := GlobalKubeClient.RestartDeploymentWithLogs(ctx, namespace, name, logCh)
 	if err != nil {
-        return c.Send("Ошибка при выполнении команды: %v", err)
+        return c.Send("Ошибка при выполнении команды")
     }
 
 	return nil
@@ -125,7 +126,7 @@ func RollbackHandler(c telebot.Context) error {
     }()
 	err = GlobalKubeClient.RollbackDeploymentWithLogs(ctx, namespace, name, num, logCh)
 	if err != nil {
-		return c.Send("Ошибка при выполнении команды: %v", err)
+		return c.Send("Ошибка при выполнении команды")
 	}
 
 	return nil
