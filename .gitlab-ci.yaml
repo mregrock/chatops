@@ -1,0 +1,45 @@
+stages:
+  - deploy
+
+variables:
+  SSH_HOST: $SSH_HOST
+  SSH_USERNAME: $SSH_USERNAME
+  SSH_PRIVATE_KEY: $SSH_PRIVATE_KEY
+  SSH_PORT: $SSH_PORT
+
+deploy:
+  stage: deploy
+  image: appleboy/drone-ssh
+  script:
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 600 ~/.ssh/id_rsa
+    - ssh-keyscan -H $SSH_HOST >> ~/.ssh/known_hosts
+
+    - ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -p $SSH_PORT $SSH_USERNAME@$SSH_HOST << 'EOF'
+      cd ~/chatops
+      git pull origin main
+      
+      echo "Init db variables..."
+      echo "POSTGRES_USER=$POSTGRES_USER" > .env
+      echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" >> .env
+      echo "POSTGRES_NAME=$POSTGRES_NAME" >> .env
+      
+      echo "Init app variables..."
+      echo "TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN" >> .env
+      echo "GPT_KEY=$GPT_KEY" >> .env
+      echo "GPT_CATALOG=$GPT_CATALOG" >> .env
+      echo "PROMETHEUS_URL=$PROMETHEUS_URL" >> .env
+      echo "ALERTMANAGER_URL=$ALERTMANAGER_URL" >> .env
+      
+      echo "Init kuber config..."
+      mkdir -p ./kube
+      echo "$KUBERCONFIG_BASE64" | base64 -d > ./kube/config
+      
+      KUBECONFIG=/root/.kube/config
+      
+      docker compose up -d --build
+      EOF
+
+  only:
+    - main
