@@ -17,7 +17,7 @@ if [ -z "${K8S_CLUSTER_NAME}" ] || [ -z "${K8S_CLUSTER_ZONE}" ]; then
 fi
 
 echo "Аутентификация с помощью сервисного аккаунта..."
-yc config set-service-account-key key.json
+yc config set service-account-key key.json
 
 echo "Получение учетных данных для кластера Kubernetes: ${K8S_CLUSTER_NAME}..."
 yc container cluster get-credentials "${K8S_CLUSTER_NAME}" --internal

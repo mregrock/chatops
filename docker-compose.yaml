@@ -29,10 +29,8 @@ services:
       GPT_KEY: ${GPT_KEY}
       GPT_CATALOG: ${GPT_CATALOG}
 
-      # Переменные для доступа к кластеру Kubernetes
-      # Укажите здесь имя и зону вашего кластера
-      K8S_CLUSTER_NAME: "your-cluster-name"
-      K8S_CLUSTER_ZONE: "your-cluster-zone"
+      K8S_CLUSTER_NAME: "hackathon-k8s"
+      K8S_CLUSTER_ZONE: "ru-central1-a"
 
     depends_on:
       - db
