@@ -150,6 +150,7 @@ func main() {
 	/revisions [namespace/name] - вывод списка ревизий
 	/list_pods [namespace]/[name] - вывод списка pod'ов
   /ai_help [строка] - команда для общения с ИИ и преобразования текста в команды
+	/alerts - Проверка алертов
 	/help - выводит все доступные команды`
 
 	var commandHandlers = map[string]handlerFunc{
@@ -164,6 +165,7 @@ func main() {
 		"/list_pods":   handlers.ListPodsHandler,
 		"/revisions":   handlers.RevisionsHandler,
 		"/ai_help":     handlers.AiHelpHandler,
+		"/alerts":      handlers.AlertsHandler,
 	}
 	var userState = make(map[int64]string)
 	var userLogin = ""
@@ -231,6 +233,7 @@ func main() {
 		{Text: "list_pods", Description: "Список pod'ов"},
 		{Text: "help", Description: "Список доступных команд"},
 		{Text: "ai_help", Description: "преобразования текста в команды с помошью ИИ"},
+		{Text: "alerts", Description: "Проверка алертов"},
 	}
 	if err := bot.SetCommands(commands); err != nil {
 		log.Println("Ошибка при установке команд:", err)
