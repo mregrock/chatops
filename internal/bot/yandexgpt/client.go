@@ -27,14 +27,14 @@ func SendMessage(text string) (string, error) {
 	}
 	fmt.Println(string(systemPrompt))
 
-	apiKey := os.Getenv("API_KEY")
+	apiKey := os.Getenv("GPT_KEY")
 	if apiKey == "" {
-		return "", fmt.Errorf("API_KEY not found in environment")
+		return "", fmt.Errorf("GPT_KEY not found in environment")
 	}
 
-	catalogID := os.Getenv("API_CATALOG")
+	catalogID := os.Getenv("GPT_CATALOG")
 	if catalogID == "" {
-		return "", fmt.Errorf("API_CATALOG not found in environment")
+		return "", fmt.Errorf("GPT_CATALOG not found in environment")
 	}
 
 	client := yandexgpt.NewYandexGPTClientWithAPIKey(apiKey)
