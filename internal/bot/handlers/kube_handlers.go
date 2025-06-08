@@ -151,13 +151,8 @@ func RevisionsHandler(c telebot.Context) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	logCh := make(chan string)
 
-	go func() {
-        for msg := range logCh {
-            c.Send(msg) // Отправляем каждое сообщение сразу
-        }
-    }()
+    
 	ans, err := GlobalKubeClient.ListAvailableRevisions(ctx, namespace, name)
 	if err != nil {
         str := fmt.Sprintf("Ошибка при выполнении команды: %v", err)
@@ -172,4 +167,33 @@ func RevisionsHandler(c telebot.Context) error {
 
 	return nil
 
+}
+
+
+func ListPodsHandler(c telebot.Context) error {
+	parts := strings.SplitN(c.Text(), " ", 2)
+	if len(parts) < 2 {
+		return c.Send("Неправильное кол-во параметров ")
+	}
+
+	namespace := parts[1]
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+
+
+	ans, err := GlobalKubeClient.ListPods(ctx, namespace)
+	if err != nil {
+		str := fmt.Sprintf("Ошибка при выполнении команды: %v", err)
+		fmt.Println(str)
+		return err
+	}
+	var str string
+	for _, pod := range ans {
+		str += pod + "\n"
+		
+	}
+
+	return c.Send(str)
 }

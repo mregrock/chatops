@@ -103,15 +103,16 @@ func main() {
 	helpMsg := `Доступные функции:
 
 	/start - чтобы авторизоваться
-	/status [name\id] - ?
-	/metric [сервис] [метрика]
-	/list_metric [сервис] [метрика]
-	/scale
-	/restart
-	/rollback
-	/history
-	/operations
-	/revisions
+	/status [name или id] - проверка статуса сервиса
+	/metric [сервис] [строка] - вывод метрики сервиса
+	/list_metric [сервис] [строка] - поиск метрики, содержащую данную строку в названии
+	/scale [namespace]/[name] [количество реплик] - масштабирование сервиса
+	/restart [namespace]/[name] - перезапуск сервиса
+	/rollback [namespace]/[name] [номер ревизии] - откат сервиса к указанной ревизии
+	/history - вывод истории операций
+	/operations - вывод списка операций
+	/revisions [namespace/name] - вывод списка ревизий
+	/list_pods [namespace]/[name] - вывод списка pod'ов
 	/help - выводит все доступные команды`
 
 	var commandHandlers = map[string]handlerFunc{
@@ -123,6 +124,7 @@ func main() {
 		"/rollback":    handlers.RollbackHandler,
 		"/history":     handlers.HistoryHandler,
 		"/operations":  handlers.OperationsHandler,
+		"/list_pods" : handlers.ListPodsHandler,
 		"/revisions":   handlers.RevisionsHandler,
 	}
 	var userState = make(map[int64]string)
