@@ -73,7 +73,10 @@ func ListMetricsHandler(c telebot.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+    fmt.Println("Getting metrics...")
 	response, err := GlobalMonitorClient.ListMetrics(ctx, req)
+	fmt.Println("Resp metrics:")
+	fmt.Println(response)
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			return c.Send("Превышено время ожидания запроса (timeout)")
