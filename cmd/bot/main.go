@@ -62,10 +62,11 @@ func withConfirmation(handler handlerFunc) handlerFunc {
 }
 
 func main() {
-	err := godotenv.Load()
+    err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Не удалось загрузить .env файл")
+		log.Println("Не удалось загрузить .env файл, используются переменные окружения системы")
 	}
+
 
 	migrations.AutoMigrate()
 
@@ -74,8 +75,10 @@ func main() {
 		log.Fatal("TELEGRAM_API не найден в .env")
 	}
 
-	// TODO: get from env
-	monClient, err := monitoring.NewClient("http://localhost:9090", "")
+	prometheus_url = os.Getenv("PROMETHEUS_URL")
+	alertmanager_url = os.GetEnv("ALERTMANAGER_URL")
+
+	monClient, err := monitoring.NewClient(prometheus_url, alertmanager_url)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -96,8 +99,8 @@ func main() {
 
 	/start - чтобы авторизоваться
 	/status [name\id] - ?
-	/metric [сервис] [метрика] 
-	/list_metric [сервис] [метрика] 
+	/metric [сервис] [метрика]
+	/list_metric [сервис] [метрика]
 	/scale
 	/restart
 	/rollback
