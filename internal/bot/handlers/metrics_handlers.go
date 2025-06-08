@@ -93,28 +93,27 @@ func ListMetricsHandler(c telebot.Context) error {
  * получить статус подов
  */
 func StatusHandler(c telebot.Context) error {
-	// return c.Send("Not implemented")
-
-    parts := strings.SplitN(c.Text(), " ", 2)
+	parts := strings.SplitN(c.Text(), " ", 2)
 	if len(parts) < 2 {
-		return c.Send("Неправильное кол-во параметров ")
+		return c.Send("Usage: /status <job_name>")
 	}
 	job := parts[1]
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-    fmt.Println("Getting status dashboard...");
+	fmt.Println("Getting status dashboard for job:", job)
 	response, err := GlobalMonitorClient.GetStatusDashboard(ctx, "", job)
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			return c.Send("Превышено время ожидания запроса (timeout)")
 		}
-		return c.Send(fmt.Sprintf("Произошла ошибка: %v", err))
+		return c.Send(fmt.Sprintf("❌ *Произошла ошибка:*\n`%v`", escapeMarkdown(err.Error())), telebot.ModeMarkdownV2)
 	}
 
-    fmt.Println(response);
+	fmt.Printf("Successfully got dashboard: %+v\n", response)
 
-	return c.Send(formatDashboardForTelegram(response), "\n")
+	return c.Send(formatDashboardForTelegram(response), telebot.ModeMarkdownV2)
 }
 
 // formatDashboardForTelegram форматирует данные дашборда в строку для отправки в Telegram
@@ -126,8 +125,13 @@ func formatDashboardForTelegram(dashboard *monitoring.ServiceStatusDashboard) st
 	if len(dashboard.Alerts) > 0 {
 		sb.WriteString("🔥 *Активные алерты:*\n")
 		for _, alert := range dashboard.Alerts {
-			// Using block quotes for alerts
-			sb.WriteString(fmt.Sprintf("> %s\n", escapeMarkdown(alert.Labels["alertname"])))
+			alertName := alert.Labels["alertname"]
+			summary := alert.Annotations["summary"]
+			if summary == "" {
+				summary = "Нет описания."
+			}
+			// Use block quotes for alerts for better visibility
+			sb.WriteString(fmt.Sprintf("> *%s:* %s\n", escapeMarkdown(alertName), escapeMarkdown(summary)))
 		}
 		sb.WriteString("\n")
 	} else {
@@ -135,23 +139,37 @@ func formatDashboardForTelegram(dashboard *monitoring.ServiceStatusDashboard) st
 	}
 
 	if len(dashboard.Pods) > 0 {
-		sb.WriteString("💻 *Pods:*\n")
+		sb.WriteString("💻 *Поды:*\n")
 		for _, pod := range dashboard.Pods {
 			sb.WriteString("--------------------------------\n")
-			readyIcon := "✅"
-			if !pod.Ready {
-				readyIcon = "⏳"
+
+			var statusIcon, statusText string
+			switch {
+			case pod.Ready:
+				statusIcon = "✅"
+				statusText = "Ready"
+			case pod.Phase == "Running" && !pod.Ready:
+				statusIcon = "⏳"
+				statusText = "Not Ready"
+			case pod.Phase == "Pending":
+				statusIcon = "⌛️"
+				statusText = "Pending"
+			case pod.Phase == "Succeeded":
+			    statusIcon = "🏁"
+			    statusText = "Succeeded"
+			default:
+				statusIcon = "❌"
+				statusText = pod.Phase
 			}
 
-			// Use human-readable memory units
 			memUsageMiB := pod.MemoryUsageBytes / 1024 / 1024
 			memLimitMiB := pod.MemoryLimitBytes / 1024 / 1024
 
-			sb.WriteString(fmt.Sprintf("*Pod:* `%s`\n", escapeMarkdown(pod.PodName)))
-			sb.WriteString(fmt.Sprintf("*Status:* %s %s\n", readyIcon, escapeMarkdown(pod.Phase)))
+			sb.WriteString(fmt.Sprintf("*Под:* `%s`\n", escapeMarkdown(pod.PodName)))
+			sb.WriteString(fmt.Sprintf("*Статус:* %s %s\n", statusIcon, escapeMarkdown(statusText)))
 			sb.WriteString(fmt.Sprintf("*CPU:* `%.2f / %.2f` cores\n", pod.CPUUsageCores, pod.CPULimitCores))
-			sb.WriteString(fmt.Sprintf("*Memory:* `%.0f / %.0f` MiB\n", memUsageMiB, memLimitMiB))
-			sb.WriteString(fmt.Sprintf("*Restarts:* `%d`\n", pod.Restarts))
+			sb.WriteString(fmt.Sprintf("*Память:* `%.0f / %.0f` MiB\n", memUsageMiB, memLimitMiB))
+			sb.WriteString(fmt.Sprintf("*Перезапуски:* `%d`\n", pod.Restarts))
 			if pod.OOMKilled {
 				sb.WriteString("*OOMKilled:* 💀 `true`\n")
 			}
