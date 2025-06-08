@@ -1,32 +1,34 @@
 package main
 
 import (
-  "chatops/internal/app"
-  "chatops/internal/bot/handlers"
-  "chatops/internal/db/migrations"
-  "chatops/internal/kube"
-  "chatops/internal/monitoring"
-  "log"
-  "os"
-  "os/signal"
-  "path/filepath"
-  "strings"
-  "syscall"
-  "time"
 
-  "github.com/joho/godotenv"
-  telebot "gopkg.in/telebot.v3"
+	"chatops/internal/app"
+	"chatops/internal/bot/handlers"
+	"chatops/internal/db/migrations"
+	"chatops/internal/kube"
+	"chatops/internal/monitoring"
+	"log"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"strings"
+	"syscall"
+	"time"
+
+	"github.com/joho/godotenv"
+	telebot "gopkg.in/telebot.v3"
 )
 
 type UserCredentials struct {
-  Login    string
-  Password string
+	Login    string
+	Password string
 }
 
 var (
-  userState      = make(map[int64]string)
-  userCreds      = make(map[int64]UserCredentials)
-  userAuthStatus = make(map[int64]bool)
+	userState      = make(map[int64]string)
+	userCreds      = make(map[int64]UserCredentials)
+	userAuthStatus = make(map[int64]bool)
+
 )
 
 type handlerFunc func(telebot.Context) error

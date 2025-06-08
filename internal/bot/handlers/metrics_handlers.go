@@ -11,7 +11,7 @@ import (
 	telebot "gopkg.in/telebot.v3"
 )
 
-var GlobalMonitorClient *monitoring.Client 
+var GlobalMonitorClient *monitoring.Client
 
 // SetMonitorClient sets the global monitor client for handlers
 func SetMonitorClient(client *monitoring.Client) {
@@ -52,7 +52,7 @@ func MetricHandler(c telebot.Context) error {
 		}
 	}
 
-	allValues = strings.TrimSpace(allValues) 
+	allValues = strings.TrimSpace(allValues)
 
 	return c.Send(result + allValues)
 
@@ -88,16 +88,88 @@ func ListMetricsHandler(c telebot.Context) error {
 	return c.Send(strings.Join(matchedMetrics, "\n"))
 }
 
-// StatusHandler - заглушка
 
+/**
+ * получить статус подов
+ */
 func StatusHandler(c telebot.Context) error {
-	return c.Send("Not implemented")
+	// return c.Send("Not implemented")
+
+    parts := strings.SplitN(c.Text(), " ", 2)
+	if len(parts) < 2 {
+		return c.Send("Неправильное кол-во параметров ")
+	}
+	job := parts[1]
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	response, err := GlobalMonitorClient.GetStatusDashboard(ctx, "", job)
+	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return c.Send("Превышено время ожидания запроса (timeout)")
+		}
+		return c.Send(fmt.Sprintf("Произошла ошибка: %v", err))
+	}
+
+	return c.Send(formatDashboardForTelegram(response), "\n")
 }
 
+// formatDashboardForTelegram форматирует данные дашборда в строку для отправки в Telegram
+func formatDashboardForTelegram(dashboard *monitoring.ServiceStatusDashboard) string {
+	var sb strings.Builder
 
+	sb.WriteString(fmt.Sprintf("*Статус сервиса: `%s`*\n\n", escapeMarkdown(dashboard.ServiceName)))
 
+	if len(dashboard.Alerts) > 0 {
+		sb.WriteString("🔥 *Активные алерты:*\n")
+		for _, alert := range dashboard.Alerts {
+			// Using block quotes for alerts
+			sb.WriteString(fmt.Sprintf("> %s\n", escapeMarkdown(alert.Labels["alertname"])))
+		}
+		sb.WriteString("\n")
+	} else {
+		sb.WriteString("✅ *Нет активных алертов*\n\n")
+	}
 
+	if len(dashboard.Pods) > 0 {
+		sb.WriteString("💻 *Pods:*\n")
+		for _, pod := range dashboard.Pods {
+			sb.WriteString("--------------------------------\n")
+			readyIcon := "✅"
+			if !pod.Ready {
+				readyIcon = "⏳"
+			}
 
+			// Use human-readable memory units
+			memUsageMiB := pod.MemoryUsageBytes / 1024 / 1024
+			memLimitMiB := pod.MemoryLimitBytes / 1024 / 1024
 
+			sb.WriteString(fmt.Sprintf("*Pod:* `%s`\n", escapeMarkdown(pod.PodName)))
+			sb.WriteString(fmt.Sprintf("*Status:* %s %s\n", readyIcon, escapeMarkdown(pod.Phase)))
+			sb.WriteString(fmt.Sprintf("*CPU:* `%.2f / %.2f` cores\n", pod.CPUUsageCores, pod.CPULimitCores))
+			sb.WriteString(fmt.Sprintf("*Memory:* `%.0f / %.0f` MiB\n", memUsageMiB, memLimitMiB))
+			sb.WriteString(fmt.Sprintf("*Restarts:* `%d`\n", pod.Restarts))
+			if pod.OOMKilled {
+				sb.WriteString("*OOMKilled:* 💀 `true`\n")
+			}
+		}
+	} else {
+		sb.WriteString("🤷‍♂️ *Подов по запросу не найдено\\.*\n")
+	}
+
+	return sb.String()
+}
+
+// escapeMarkdown escapes characters that have special meaning in Telegram's MarkdownV2.
+func escapeMarkdown(s string) string {
+	r := strings.NewReplacer(
+		"_", "\\_", "*", "\\*", "[", "\\[", "]", "\\]", "(",
+		"\\(", ")", "\\)", "~", "\\~", "`", "\\`", ">",
+		"\\>", "#", "\\#", "+", "\\+", "-", "\\-", "=",
+		"\\=", "|", "\\|", "{", "\\{", "}", "\\}", ".",
+		"\\.", "!", "\\!",
+	)
+	return r.Replace(s)
+}
 
 

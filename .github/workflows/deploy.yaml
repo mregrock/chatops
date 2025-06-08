@@ -39,6 +39,8 @@ jobs:
             mkdir -p ./kube
             echo "${{ secrets.KUBERCONFIG_BASE64 }}" | base64 -d > ./kube/config
             
+            echo "${{ secrets.KUBE_KEY }}" | base64 -d > ./key.json
+            
             KUBECONFIG=/root/.kube/config
           
             docker compose up -d --build

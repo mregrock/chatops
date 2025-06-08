@@ -119,7 +119,7 @@ func (c *K8sClient) ScaleDeploymentWithLogs(ctx context.Context, namespace, name
 	// Получаем Deployment
 	dep, err := c.clientset.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
-		log(fmt.Sprintf("Ошибка получения Deployment: %v", err))
+		log(fmt.Sprintf("Ошибка получения Deployment: %v; namespace = %s; name = %s", err, namespace, name))
 		return err
 	}
 
@@ -177,7 +177,7 @@ func (c *K8sClient) RollbackDeploymentWithLogs(ctx context.Context, namespace, n
 	log("[rollback] Получаем deployment...")
 	dep, err := c.clientset.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
-		log(fmt.Sprintf("[rollback] Ошибка получения deployment: %v", err))
+		log(fmt.Sprintf("Ошибка получения Deployment: %v; namespace = %s; name = %s", err, namespace, name))
 		return fmt.Errorf("ошибка получения deployment: %v", err)
 	}
 
@@ -321,7 +321,7 @@ func (c *K8sClient) RestartDeploymentWithLogs(ctx context.Context, namespace, na
 
 	dep, err := c.clientset.AppsV1().Deployments(namespace).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
-		log(fmt.Sprintf("Ошибка получения Deployment: %v", err))
+		log(fmt.Sprintf("Ошибка получения Deployment: %v; namespace = %s; name = %s", err, namespace, name))
 		return err
 	}
 
