@@ -91,20 +91,8 @@ func StatusHandler(c telebot.Context) error {
 	return c.Send("Not implemented")
 }
 
-// ScaleHandler - заглушка
-func ScaleHandler(c telebot.Context) error {
-	return c.Send("Not implemented")
-}
 
-// RestartHandler - заглушка
-func  RestartHandler(c telebot.Context) error {
-	return c.Send("Not implemented")
-}
 
-// RollbackHandler - заглушка
-func  RollbackHandler(c telebot.Context) error {
-	return c.Send("Not implemented")
-}
 
 
 

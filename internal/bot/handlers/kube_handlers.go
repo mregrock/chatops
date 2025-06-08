@@ -18,7 +18,7 @@ func SetKubeClient(client *kube.K8sClient) {
 }
 
 // kube
-func scaleHandler(c telebot.Context) error {
+func ScaleHandler(c telebot.Context) error {
 	parts := strings.SplitN(c.Text(), " ", 3)
 	if len(parts) < 3 {
 		return c.Send("Неправильное кол-во параметров ")
@@ -51,13 +51,13 @@ func scaleHandler(c telebot.Context) error {
 }
 
 // kube
-func restartHandler(c telebot.Context) error {
+func RestartHandler(c telebot.Context) error {
 	// TODO: Реализовать логику для команды restart
 	return c.Send("Выполняется команда restart...")
 }
 
 // kube
-func rollbackHandler(c telebot.Context) error {
+func RollbackHandler(c telebot.Context) error {
 	// TODO: Реализовать логику для команды rollback
 	return c.Send("Выполняется команда rollback...")
 }
