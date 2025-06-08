@@ -75,8 +75,8 @@ func main() {
 		log.Fatal("TELEGRAM_API не найден в .env")
 	}
 
-	prometheus_url = os.Getenv("PROMETHEUS_URL")
-	alertmanager_url = os.GetEnv("ALERTMANAGER_URL")
+	prometheus_url := os.Getenv("PROMETHEUS_URL")
+	alertmanager_url := os.Getenv("ALERTMANAGER_URL")
 
 	monClient, err := monitoring.NewClient(prometheus_url, alertmanager_url)
 	if err != nil {
