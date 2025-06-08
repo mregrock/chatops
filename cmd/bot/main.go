@@ -1,14 +1,17 @@
 package main
 
 import (
+	"chatops/internal/app"
 	"chatops/internal/bot/handlers"
 	"chatops/internal/db/migrations"
 	"chatops/internal/kube"
 	"chatops/internal/monitoring"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -57,6 +60,38 @@ func withConfirmation(handler handlerFunc) handlerFunc {
 	}
 }
 
+func startPoller() {
+	// Получаем URL'ы из переменных окружения
+	prometheusURL := os.Getenv("PROMETHEUS_URL")
+	alertmanagerURL := os.Getenv("ALERTMANAGER_URL")
+
+	// Создаем клиент для мониторинга
+	monitoringClient, err := monitoring.NewClient(prometheusURL, alertmanagerURL)
+	if err != nil {
+		log.Printf("Failed to create monitoring client: %v", err)
+		return
+	}
+
+	// Создаем поллер с интервалом 40 секунд
+	poller := app.NewAlertPoller(monitoringClient, 40*time.Second)
+
+	// Создаем канал для обработки сигналов
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Запускаем поллер
+	poller.Start()
+	log.Println("Alert poller started")
+
+	// Ждем сигнала для завершения
+	<-sigChan
+	log.Println("Received shutdown signal")
+
+	// Останавливаем поллер
+	poller.Stop()
+	log.Println("Alert poller stopped")
+}
+
 func main() {
 	err := godotenv.Load()
 	if err != nil {
@@ -97,6 +132,9 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Запускаем поллер в отдельной горутине
+	go startPoller()
 
 	helpMsg := `Доступные функции:
 

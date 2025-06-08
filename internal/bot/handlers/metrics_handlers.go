@@ -17,6 +17,7 @@ var GlobalMonitorClient *monitoring.Client
 func SetMonitorClient(client *monitoring.Client) {
 	GlobalMonitorClient = client
 }
+
 // metric
 func MetricHandler(c telebot.Context) error {
 	parts := strings.SplitN(c.Text(), " ", 3)
@@ -30,9 +31,6 @@ func MetricHandler(c telebot.Context) error {
 	defer cancel()
 
 	response, err := GlobalMonitorClient.Query(ctx, req)
-
-
-
 
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
@@ -88,14 +86,13 @@ func ListMetricsHandler(c telebot.Context) error {
 	return c.Send(strings.Join(matchedMetrics, "\n"))
 }
 
-
 /**
  * получить статус подов
  */
 func StatusHandler(c telebot.Context) error {
 	// return c.Send("Not implemented")
 
-    parts := strings.SplitN(c.Text(), " ", 2)
+	parts := strings.SplitN(c.Text(), " ", 2)
 	if len(parts) < 2 {
 		return c.Send("Неправильное кол-во параметров ")
 	}
@@ -111,11 +108,11 @@ func StatusHandler(c telebot.Context) error {
 		return c.Send(fmt.Sprintf("Произошла ошибка: %v", err))
 	}
 
-	return c.Send(formatDashboardForTelegram(response), "\n")
+	return c.Send(FormatDashboardForTelegram(response), "\n")
 }
 
-// formatDashboardForTelegram форматирует данные дашборда в строку для отправки в Telegram
-func formatDashboardForTelegram(dashboard *monitoring.ServiceStatusDashboard) string {
+// FormatDashboardForTelegram форматирует данные дашборда в строку для отправки в Telegram
+func FormatDashboardForTelegram(dashboard *monitoring.ServiceStatusDashboard) string {
 	var sb strings.Builder
 
 	sb.WriteString(fmt.Sprintf("*Статус сервиса: `%s`*\n\n", escapeMarkdown(dashboard.ServiceName)))
@@ -171,5 +168,3 @@ func escapeMarkdown(s string) string {
 	)
 	return r.Replace(s)
 }
-
-
