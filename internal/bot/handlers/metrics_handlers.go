@@ -17,6 +17,7 @@ var GlobalMonitorClient *monitoring.Client
 func SetMonitorClient(client *monitoring.Client) {
 	GlobalMonitorClient = client
 }
+
 // metric
 func MetricHandler(c telebot.Context) error {
 	parts := strings.SplitN(c.Text(), " ", 3)
@@ -30,9 +31,6 @@ func MetricHandler(c telebot.Context) error {
 	defer cancel()
 
 	response, err := GlobalMonitorClient.Query(ctx, req)
-
-
-
 
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
@@ -88,22 +86,25 @@ func ListMetricsHandler(c telebot.Context) error {
 	return c.Send(strings.Join(matchedMetrics, "\n"))
 }
 
-
 /**
  * получить статус подов
  */
 func StatusHandler(c telebot.Context) error {
-	parts := strings.SplitN(c.Text(), " ", 2)
+	parts := strings.Split(c.Text(), " ")
 	if len(parts) < 2 {
-		return c.Send("Usage: /status <job_name>")
+		return c.Send("Usage: /status <job_name> [namespace]")
 	}
 	job := parts[1]
+	namespace := "default"
+	if len(parts) > 2 {
+		namespace = parts[2]
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	fmt.Println("Getting status dashboard for job:", job)
-	response, err := GlobalMonitorClient.GetStatusDashboard(ctx, "", job)
+	fmt.Println("Getting status dashboard for job:", job, "in namespace:", namespace)
+	response, err := GlobalMonitorClient.GetStatusDashboard(ctx, namespace, job)
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			return c.Send("Превышено время ожидания запроса (timeout)")
@@ -155,8 +156,8 @@ func formatDashboardForTelegram(dashboard *monitoring.ServiceStatusDashboard) st
 				statusIcon = "⌛️"
 				statusText = "Pending"
 			case pod.Phase == "Succeeded":
-			    statusIcon = "🏁"
-			    statusText = "Succeeded"
+				statusIcon = "🏁"
+				statusText = "Succeeded"
 			default:
 				statusIcon = "❌"
 				statusText = pod.Phase
@@ -192,5 +193,3 @@ func escapeMarkdown(s string) string {
 	)
 	return r.Replace(s)
 }
-
-
