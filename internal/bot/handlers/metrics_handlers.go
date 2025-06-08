@@ -103,6 +103,7 @@ func StatusHandler(c telebot.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+    fmt.Println("Getting status dashboard...");
 	response, err := GlobalMonitorClient.GetStatusDashboard(ctx, "", job)
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
@@ -110,6 +111,8 @@ func StatusHandler(c telebot.Context) error {
 		}
 		return c.Send(fmt.Sprintf("Произошла ошибка: %v", err))
 	}
+
+    fmt.Println(response);
 
 	return c.Send(formatDashboardForTelegram(response), "\n")
 }
