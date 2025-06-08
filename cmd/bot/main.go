@@ -140,6 +140,7 @@ func main() {
     "/history":     handlers.HistoryHandler,
     "/operations":  handlers.OperationsHandler,
     "/revisions":   handlers.RevisionsHandler,
+	"/list_pods":   handlers.ListPodsHandler,
   }
 
   bot.Handle("/start", func(c telebot.Context) error {
