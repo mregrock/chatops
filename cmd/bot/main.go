@@ -78,12 +78,11 @@ func main() {
 	prometheus_url := os.Getenv("PROMETHEUS_URL")
 	alertmanager_url := os.Getenv("ALERTMANAGER_URL")
 
-	monClient, err := monitoring.NewClient(prometheus_url, alertmanager_url)
+	monitorClient, err := monitoring.NewClient(prometheus_url, alertmanager_url)
 
 	if err != nil {
 		log.Fatal(err)
 	}
-	handlers.SetMonitorClient(monitorClient)
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
