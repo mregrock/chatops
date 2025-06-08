@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"chatops/internal/bot/handlers"
 	"chatops/internal/db/config"
 	"chatops/internal/db/repository"
 )
@@ -74,4 +75,33 @@ func TestAlerter_Integration_CheckAndNotify(t *testing.T) {
 
 	log.SetOutput(os.Stderr)
 	log.Println("Integration test finished successfully. Notification found in logs.")
+}
+
+func TestAlertsHandler_Integration(t *testing.T) {
+	alertmanagerURL := "http://localhost:9093"
+	monClient, err := monitoring.NewClient("", alertmanagerURL)
+	if err != nil {
+		t.Fatalf("Failed to create monitoring client: %v", err)
+	}
+
+	message, err := handlers.GenerateAlertsMessage(context.Background(), monClient)
+	if err != nil {
+		t.Fatalf("handlers.GenerateAlertsMessage failed: %v", err)
+	}
+
+	log.Printf("Generated message for /alerts command: %s", message)
+
+	if strings.Contains(message, "✅ *Нет активных алертов*") {
+		t.Log("No active alerts found, which is a valid state.")
+		return
+	}
+
+	if !strings.Contains(message, "🔥 *Активные алерты:*") {
+		t.Fatalf("Expected message to contain '🔥 *Активные алерты:*' header, but it was not found. Got: %s", message)
+	}
+
+	expectedAlertName := "KubeProxyDown"
+	if !strings.Contains(message, expectedAlertName) {
+		t.Errorf("Expected notification to contain alert '%s', but it was not found.", expectedAlertName)
+	}
 }
