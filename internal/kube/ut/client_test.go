@@ -10,6 +10,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
 
 	"chatops/internal/kube"
@@ -776,6 +777,81 @@ func TestGetPodLogs(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotNil(t, logs)
 				t.Logf("Получены логи пода %s:\n%s", tt.podName, logs)
+			}
+		})
+	}
+}
+
+func TestListPods(t *testing.T) {
+	// Создаем тестовые поды
+	testPods := []*corev1.Pod{
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-pod-1",
+				Namespace: "test-namespace",
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-pod-2",
+				Namespace: "test-namespace",
+			},
+		},
+		{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test-pod-3",
+				Namespace: "other-namespace",
+			},
+		},
+	}
+
+	// Создаем фейковый клиент
+	var objects []runtime.Object
+	for _, pod := range testPods {
+		objects = append(objects, pod)
+	}
+	fakeClient := fake.NewSimpleClientset(objects...)
+	testClient = kube.NewTestClient(fakeClient)
+
+	tests := []struct {
+		name        string
+		namespace   string
+		expected    []string
+		expectError bool
+	}{
+		{
+			name:      "Получение подов из test-namespace",
+			namespace: "test-namespace",
+			expected: []string{
+				"test-pod-1",
+				"test-pod-2",
+			},
+			expectError: false,
+		},
+		{
+			name:      "Получение подов из other-namespace",
+			namespace: "other-namespace",
+			expected: []string{
+				"test-pod-3",
+			},
+			expectError: false,
+		},
+		{
+			name:        "Получение подов из несуществующего namespace",
+			namespace:   "nonexistent-namespace",
+			expected:    []string{},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pods, err := testClient.ListPods(context.Background(), tt.namespace)
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.ElementsMatch(t, tt.expected, pods)
 			}
 		})
 	}

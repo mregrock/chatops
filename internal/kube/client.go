@@ -44,6 +44,7 @@ type K8sClientInterface interface {
 	ListAvailableRevisions(ctx context.Context, namespace, deploymentName string) ([]RevisionInfo, error)
 	GetClientset() kubernetes.Interface
 	GetPodLogs(ctx context.Context, namespace, podName string, opts *PodLogsOptions) (string, error)
+	ListPods(ctx context.Context, namespace string) ([]string, error)
 }
 
 type K8sClient struct {
@@ -433,4 +434,23 @@ func (c *K8sClient) GetPodLogs(ctx context.Context, namespace, podName string, o
 	}
 
 	return string(logs), nil
+}
+
+// ListPods возвращает список имен подов в указанном namespace
+func (c *K8sClient) ListPods(ctx context.Context, namespace string) ([]string, error) {
+	if c.clientset == nil {
+		return nil, fmt.Errorf("client not initialized")
+	}
+
+	pods, err := c.clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("ошибка получения списка подов: %v", err)
+	}
+
+	var podList []string
+	for _, pod := range pods.Items {
+		podList = append(podList, pod.Name)
+	}
+
+	return podList, nil
 }
