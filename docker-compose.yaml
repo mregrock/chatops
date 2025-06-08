@@ -52,6 +52,8 @@ services:
       - db
       - prometheus-pf
       - alertmanager-pf
+    volumes:
+      - /home/quasarity/.cache/go-build:/root/.cache/go-build
 
 volumes:
   postgres_data: {}
